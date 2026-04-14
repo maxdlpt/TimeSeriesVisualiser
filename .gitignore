@@ -6,3 +6,6 @@ dist/
 .vscode/
 .idea/
 .vite/
+
+# TypeScript incremental build cache (regenerated on every tsc run)
+tsconfig.*.tsbuildinfo
