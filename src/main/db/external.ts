@@ -84,6 +84,11 @@ export class ExternalDBReader {
   close(): void {
     this.db.close()
   }
+
+  /** @internal Test hook: whether this connection has FK enforcement on. */
+  isForeignKeysEnabled(): boolean {
+    return this.db.pragma('foreign_keys', { simple: true }) === 1
+  }
 }
 
 /**

@@ -5,57 +5,58 @@ import { initSchema } from '../db/schema'
 import { MemoryDB } from '../db/memory'
 import { ExternalDBReader, checkPathReachable } from '../db/external'
 import { IPC } from '../../shared/ipc-channels'
-import type { AppSettings } from '../../shared/types'
-
-// Singleton internal memory DB
-const dbPath = path.join(app.getPath('userData'), 'memory.db')
-const rawDb = new Database(dbPath)
-initSchema(rawDb)
-const memDB = new MemoryDB(rawDb)
-
-function getSettings(): AppSettings {
-  const raw = rawDb.prepare("SELECT value FROM settings WHERE key = 'app'").get() as
-    | { value: string }
-    | undefined
-  if (!raw) return { theme: 'system', colorPalette: 'default', externalDBs: [] }
-  return JSON.parse(raw.value)
-}
-
-function saveSettings(s: AppSettings): void {
-  rawDb
-    .prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('app', ?)")
-    .run(JSON.stringify(s))
-}
+import type { AppSettings, RawSeries } from '../../shared/types'
 
 export function registerHandlers(): void {
+  // Singleton internal memory DB. Initialised here (not at module import time)
+  // so `app.getPath('userData')` is only read after `app.whenReady()` has
+  // resolved — the caller of registerHandlers is expected to do so.
+  const dbPath = path.join(app.getPath('userData'), 'memory.db')
+  const rawDb = new Database(dbPath)
+  initSchema(rawDb)
+  const memDB = new MemoryDB(rawDb)
+
+  const getSettings = (): AppSettings => {
+    const raw = rawDb.prepare("SELECT value FROM settings WHERE key = 'app'").get() as
+      | { value: string }
+      | undefined
+    if (!raw) return { theme: 'system', colorPalette: 'default', externalDBs: [] }
+    return JSON.parse(raw.value)
+  }
+
+  const saveSettings = (s: AppSettings): void => {
+    rawDb
+      .prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('app', ?)")
+      .run(JSON.stringify(s))
+  }
+
   ipcMain.handle(IPC.MEMORY_LIST_SERIES, () => memDB.listSeries())
   ipcMain.handle(IPC.MEMORY_GET_SERIES, (_e, id: string) => memDB.getSeries(id))
-  ipcMain.handle(IPC.MEMORY_SAVE_SERIES, (_e, payload) => {
+  ipcMain.handle(IPC.MEMORY_SAVE_SERIES, (_e, payload: RawSeries) => {
     memDB.saveSeries(payload)
   })
   ipcMain.handle(IPC.MEMORY_DELETE_SERIES, (_e, id: string) => {
     memDB.deleteSeries(id)
   })
 
+  // External DB reads: let errors propagate so the renderer's ipcRenderer.invoke
+  // promise rejects. TsvSchemaError carries `code` + `missingTables` that the
+  // renderer can inspect via err.message; swallowing here would throw that away.
   ipcMain.handle(IPC.EXTERNAL_LIST_SERIES, (_e, filePath: string) => {
+    const reader = new ExternalDBReader(filePath)
     try {
-      const reader = new ExternalDBReader(filePath)
-      const list = reader.listSeries()
+      return reader.listSeries()
+    } finally {
       reader.close()
-      return list
-    } catch {
-      return []
     }
   })
 
   ipcMain.handle(IPC.EXTERNAL_GET_SERIES, (_e, filePath: string, id: string) => {
+    const reader = new ExternalDBReader(filePath)
     try {
-      const reader = new ExternalDBReader(filePath)
-      const s = reader.getSeries(id)
+      return reader.getSeries(id)
+    } finally {
       reader.close()
-      return s
-    } catch {
-      return null
     }
   })
 

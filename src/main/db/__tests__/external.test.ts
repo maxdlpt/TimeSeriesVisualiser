@@ -46,6 +46,10 @@ describe('ExternalDBReader (valid DB)', () => {
   it('checkPathReachable returns true for a valid TSV DB', () => {
     expect(checkPathReachable(tmpPath)).toBe(true)
   })
+
+  it('enables foreign_keys pragma on the reader connection (symmetry with MemoryDB)', () => {
+    expect(extDB.isForeignKeysEnabled()).toBe(true)
+  })
 })
 
 describe('ExternalDBReader (schema validation)', () => {
