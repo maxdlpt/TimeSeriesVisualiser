@@ -6,6 +6,11 @@ import { GraphTab, pivotSeries } from '../GraphTab'
 import { useGraphStore } from '../../../store/graph'
 import type { DataSeries } from '../../../../shared/types'
 
+const POINTS_A = [
+  { date: new Date('2020-01-01'), value: 100 },
+  { date: new Date('2020-02-01'), value: 110 },
+  { date: new Date('2020-03-01'), value: 120 },
+]
 const SERIES_A: DataSeries = {
   id: 's1',
   name: 'CPI',
@@ -13,13 +18,15 @@ const SERIES_A: DataSeries = {
   description: '',
   source: 'memory',
   color: '#3b82f6',
-  points: [
-    { date: new Date('2020-01-01'), value: 100 },
-    { date: new Date('2020-02-01'), value: 110 },
-    { date: new Date('2020-03-01'), value: 120 },
-  ],
+  points: [...POINTS_A],
+  originalPoints: [...POINTS_A],
 }
 
+const POINTS_B = [
+  { date: new Date('2020-01-01'), value: 200 },
+  { date: new Date('2020-02-01'), value: 210 },
+  { date: new Date('2020-03-01'), value: 215 },
+]
 const SERIES_B: DataSeries = {
   id: 's2',
   name: 'GDP',
@@ -27,11 +34,8 @@ const SERIES_B: DataSeries = {
   description: '',
   source: 'memory',
   color: '#10b981',
-  points: [
-    { date: new Date('2020-01-01'), value: 200 },
-    { date: new Date('2020-02-01'), value: 210 },
-    { date: new Date('2020-03-01'), value: 215 },
-  ],
+  points: [...POINTS_B],
+  originalPoints: [...POINTS_B],
 }
 
 beforeEach(() => {
@@ -85,28 +89,32 @@ describe('pivotSeries', () => {
   })
 
   it('unions dates across series and uses null for missing values', () => {
+    const aPoints = [
+      { date: new Date('2020-01-01'), value: 1 },
+      { date: new Date('2020-02-01'), value: 2 },
+      { date: new Date('2020-03-01'), value: 3 },
+    ]
     const a: DataSeries = {
       id: 'a',
       name: 'A',
       code: 'A',
       description: '',
       source: 'memory',
-      points: [
-        { date: new Date('2020-01-01'), value: 1 },
-        { date: new Date('2020-02-01'), value: 2 },
-        { date: new Date('2020-03-01'), value: 3 },
-      ],
+      points: [...aPoints],
+      originalPoints: [...aPoints],
     }
+    const bPoints = [
+      { date: new Date('2020-02-01'), value: 20 },
+      { date: new Date('2020-03-01'), value: 30 },
+    ]
     const b: DataSeries = {
       id: 'b',
       name: 'B',
       code: 'B',
       description: '',
       source: 'memory',
-      points: [
-        { date: new Date('2020-02-01'), value: 20 },
-        { date: new Date('2020-03-01'), value: 30 },
-      ],
+      points: [...bPoints],
+      originalPoints: [...bPoints],
     }
     const rows = pivotSeries([a, b])
     expect(rows).toHaveLength(3)
@@ -116,16 +124,18 @@ describe('pivotSeries', () => {
   })
 
   it('sorts rows by date ascending', () => {
+    const aPoints = [
+      { date: new Date('2020-03-01'), value: 3 },
+      { date: new Date('2020-01-01'), value: 1 },
+    ]
     const a: DataSeries = {
       id: 'a',
       name: 'A',
       code: 'A',
       description: '',
       source: 'memory',
-      points: [
-        { date: new Date('2020-03-01'), value: 3 },
-        { date: new Date('2020-01-01'), value: 1 },
-      ],
+      points: [...aPoints],
+      originalPoints: [...aPoints],
     }
     const rows = pivotSeries([a])
     const dates = rows.map((r) => (r.date as Date).getTime())

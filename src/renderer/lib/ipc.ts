@@ -5,11 +5,15 @@ function rawToDataSeries(
   source: DataSeries['source'],
   dbId?: string,
 ): DataSeries {
+  const points = raw.points.map((p) => ({ date: new Date(p.date), value: p.value }))
   return {
     ...raw,
     source,
     dbId,
-    points: raw.points.map((p) => ({ date: new Date(p.date), value: p.value })),
+    points,
+    // Snapshot copy: 'Reset to Raw' must restore these exactly even after
+    // an in-place mutation of `points`.
+    originalPoints: [...points],
   }
 }
 

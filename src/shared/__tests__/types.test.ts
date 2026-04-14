@@ -15,6 +15,7 @@ describe('shared types', () => {
       code: 'USCPI',
       description: 'Consumer Price Index',
       points: [{ date: new Date('2020-01-01'), value: 257.97 }],
+      originalPoints: [{ date: new Date('2020-01-01'), value: 257.97 }],
       source: 'memory'
     }
     expect(s.id).toBe('abc')

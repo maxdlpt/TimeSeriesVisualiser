@@ -8,7 +8,8 @@ export interface DataSeries {
   name: string
   code: string
   description: string
-  points: DataPoint[]
+  points: DataPoint[]          // currently displayed values (= originalPoints when raw, transform output otherwise)
+  originalPoints: DataPoint[]  // canonical raw values, immutable; transforms always read from this so they don't compound
   source: 'memory' | 'external'
   dbId?: string          // only when source === 'external'
   color?: string

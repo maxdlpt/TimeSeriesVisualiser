@@ -3,9 +3,11 @@ import { act } from '@testing-library/react'
 import { useGraphStore } from '../graph'
 import type { DataSeries } from '../../../shared/types'
 
+const POINTS = [{ date: new Date('2020-01-01'), value: 257 }]
 const SERIES: DataSeries = {
   id: 's1', name: 'CPI', code: 'CPI', description: '', source: 'memory',
-  points: [{ date: new Date('2020-01-01'), value: 257 }],
+  points: [...POINTS],
+  originalPoints: [...POINTS],
 }
 
 beforeEach(() => {

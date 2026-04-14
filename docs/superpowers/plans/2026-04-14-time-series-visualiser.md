@@ -59,7 +59,7 @@ src/
         PasteTable.tsx               # Editable paste-in table
       settings/
         DBManager.tsx                # Add / remove external DB paths with names
-        Personalisation.tsx          # Theme toggle + color palette selector
+        Personalisation.tsx          # Theme toggle + colour palette selector
     hooks/
       useGraphZoom.ts                # Scroll-wheel + drag-select zoom reducer
       useSeriesColor.ts              # Color palette cycling hook
@@ -206,6 +206,11 @@ export interface DataSeries {
   code: string
   description: string
   points: DataPoint[]
+  originalPoints: DataPoint[]  // canonical raw values — never mutated after initial load.
+                               // `points` may be transformed (normalize, pct-change, etc.);
+                               // `originalPoints` is the source of truth used by
+                               // OperationsPanel → "Reset to Raw Values" and to re-derive
+                               // when a new transform replaces a previous one (transforms do NOT stack).
   source: 'memory' | 'external'
   dbId?: string          // only when source === 'external'
   color?: string
@@ -773,9 +778,11 @@ import { act } from '@testing-library/react'
 import { useGraphStore } from '../graph'
 import type { DataSeries } from '../../../shared/types'
 
+const RAW_POINTS = [{ date: new Date('2020-01-01'), value: 257 }]
 const SERIES: DataSeries = {
   id: 's1', name: 'CPI', code: 'CPI', description: '', source: 'memory',
-  points: [{ date: new Date('2020-01-01'), value: 257 }],
+  points: RAW_POINTS,
+  originalPoints: RAW_POINTS,  // must be populated on construction; transforms read from this
 }
 
 beforeEach(() => {
@@ -1248,19 +1255,23 @@ export function parseCSVText(csvText: string): DataSeries[] {
   const dateCol = headers[0]
   const valueHeaders = headers.slice(1)
 
-  return valueHeaders.map(col => ({
-    id: makeId(),
-    name: col,
-    code: col.toUpperCase().replace(/\s+/g, '_'),
-    description: '',
-    source: 'memory' as const,
-    points: rows
+  return valueHeaders.map(col => {
+    const points = rows
       .map(row => ({
         date: new Date(row[dateCol]),
         value: parseFloat(row[col]),
       }))
-      .filter(p => !isNaN(p.date.getTime()) && !isNaN(p.value)),
-  }))
+      .filter(p => !isNaN(p.date.getTime()) && !isNaN(p.value))
+    return {
+      id: makeId(),
+      name: col,
+      code: col.toUpperCase().replace(/\s+/g, '_'),
+      description: '',
+      source: 'memory' as const,
+      points,
+      originalPoints: points,  // canonical raw; never mutated after upload
+    }
+  })
 }
 
 export function parseExcelBuffer(buffer: ArrayBuffer): DataSeries[] {
@@ -1335,11 +1346,13 @@ declare global {
 }
 
 function rawToDataSeries(raw: { id: string; name: string; code: string; description: string; points: { date: string; value: number }[] }, source: DataSeries['source'], dbId?: string): DataSeries {
+  const points = raw.points.map(p => ({ date: new Date(p.date), value: p.value }))
   return {
     ...raw,
     source,
     dbId,
-    points: raw.points.map(p => ({ date: new Date(p.date), value: p.value })),
+    points,
+    originalPoints: points,  // canonical raw values; Operations → Reset and transforms read from this
   }
 }
 
@@ -1700,12 +1713,12 @@ git commit -m "feat: upload tab with file drop zone and paste table"
 
 - [ ] **Step 1: Create `src/renderer/components/graph/GraphCanvas.tsx`**
 
-The AreaChart from the spec accepts `data` (array of objects with date + one key per series) and `lines` config. This component adapts the Zustand `activeSeries` into that format.
+The AreaChart from the spec accepts `data` (array of objects with the x-axis value under the key named by `xDataKey` + one key per series) and takes `<Area dataKey="..." />` JSX children, one per series. This component adapts the Zustand `activeSeries` into that format.
 
 ```tsx
 import { useMemo } from 'react'
 import { useGraphStore } from '../../store/graph'
-import { AreaChart, XAxis, YAxis, ChartTooltip, Line } from '../ui/area-chart'
+import { AreaChart, Area, XAxis, YAxis, Grid, ChartTooltip, chartCssVars } from '../ui/area-chart'
 
 // Merges multiple DataSeries (each with points[]) into a flat record array
 // keyed by series code, aligned on dates present in all series.
@@ -1741,12 +1754,6 @@ export function GraphCanvas() {
 
   const data = useMemo(() => mergeSeriesData(activeSeries), [activeSeries])
 
-  const lines = activeSeries.map(s => ({
-    dataKey: s.code,
-    stroke: s.color ?? '#3b82f6',
-    strokeWidth: 2,
-  }))
-
   if (activeSeries.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center text-gray-400 dark:text-gray-600">
@@ -1762,22 +1769,34 @@ export function GraphCanvas() {
     <div className="flex-1 h-full p-4">
       <AreaChart
         data={data}
-        lines={lines}
-        xAccessor={(d: Record<string, unknown>) => d.date as Date}
+        xDataKey="date"
         margin={{ top: 20, right: 32, bottom: 40, left: 64 }}
         animationDuration={300}
       >
+        <Grid />
         <XAxis />
         <YAxis />
+        {activeSeries.map(s => (
+          <Area
+            key={s.code}
+            dataKey={s.code}
+            stroke={s.color ?? chartCssVars.linePrimary}
+            strokeWidth={2}
+          />
+        ))}
         <ChartTooltip />
-        {lines.map(l => <Line key={l.dataKey} dataKey={l.dataKey} stroke={l.stroke} strokeWidth={l.strokeWidth} />)}
       </AreaChart>
     </div>
   )
 }
 ```
 
-> **Note:** The exact sub-component API (`XAxis`, `YAxis`, `Line`, `ChartTooltip`) depends on the full area-chart.tsx exports. Check the exports after copying the full file and adjust prop names to match.
+> **AreaChart API reminder (confirmed against `src/renderer/components/ui/area-chart.tsx` disk state, 2026-04-14):**
+> - `AreaChart` accepts `data: Record<string, unknown>[]`, `xDataKey: string` (defaults to `"date"`), `margin`, `animationDuration`, `aspectRatio`, `className`, plus `children: ReactNode`.
+> - **There is NO `lines` prop and NO `xAccessor` prop.** The renderer builds its own `xAccessor` internally by reading `d[xDataKey]` and coercing to `Date`.
+> - Each series is expressed as an `<Area dataKey="..." stroke="..." strokeWidth={...}/>` child. Multiple `<Area>` children render a multi-series chart. `extractAreaConfigs` walks children and picks up any element whose `props.dataKey` is a non-empty string.
+> - Sub-component exports available: `AreaChart` (default + named), `Area`, `XAxis`, `YAxis`, `Grid`, `ChartTooltip`, `PatternLines`, `PatternArea`, `SegmentBackground`, `SegmentLineFrom`, `SegmentLineTo`, `chartCssVars`. There is **no `Line` export** — use `Area`. If you need a stroke-only look, set `fill="transparent"` / `fillOpacity={0}` on the `Area`.
+> - The data rows must carry the x-axis value under the key named by `xDataKey` (so with `xDataKey="date"`, each row looks like `{ date: Date, [seriesCode]: number, ... }`). `mergeSeriesData` above already produces this shape.
 
 - [ ] **Step 2: Create hooks `src/renderer/hooks/useGraphZoom.ts`**
 
@@ -1831,6 +1850,12 @@ export function useNextSeriesColor(): string {
 ```
 
 - [ ] **Step 4: Replace GraphTab stub**
+
+> **CRITICAL: the conditional mount MUST be wrapped in `<AnimatePresence>` (shown below).**
+> Without AnimatePresence, the exit animations on `OperationsPanel` and `AddLinePanel`
+> (`exit={{ x: 320 }}` / `exit={{ x: '100%' }}`) will NOT fire — the panel will just pop off on unmount.
+> Framer Motion requires the exiting element's parent to be an `AnimatePresence` for `exit` props to run.
+> Do not simplify this to `{rightPanel === 'operations' && <OperationsPanel />}` without the wrapper.
 
 ```tsx
 // src/renderer/components/tabs/GraphTab.tsx
@@ -2028,7 +2053,7 @@ export function SeriesSourceDropdown({ value, onChange }: Props) {
 Small area chart shown in the accordion expand — uses the spec `AreaChart` component with minimal config.
 
 ```tsx
-import { AreaChart, XAxis, Line } from '../ui/area-chart'
+import { AreaChart, XAxis, Area } from '../ui/area-chart'
 import type { DataPoint } from '../../../shared/types'
 
 interface Props {
@@ -2043,13 +2068,12 @@ export function SeriesPreviewChart({ points, description }: Props) {
       <div className="h-32">
         <AreaChart
           data={data}
-          lines={[{ dataKey: 'value', stroke: '#3b82f6', strokeWidth: 1.5 }]}
-          xAccessor={(d: Record<string, unknown>) => d.date as Date}
+          xDataKey="date"
           margin={{ top: 4, right: 8, bottom: 20, left: 8 }}
           animationDuration={200}
         >
           <XAxis />
-          <Line dataKey="value" stroke="#3b82f6" strokeWidth={1.5} />
+          <Area dataKey="value" stroke="#3b82f6" strokeWidth={1.5} />
         </AreaChart>
       </div>
       {description && (
@@ -2264,17 +2288,24 @@ import type { DataSeries } from '../../../shared/types'
 
 type Transform = 'cumReturn' | 'normalize' | 'pctChange' | 'raw'
 
-function applyTransform(s: DataSeries, t: Transform): DataSeries {
-  if (t === 'raw') return s
+// IMPORTANT: transforms always read from `s.originalPoints`, never from `s.points`.
+// If we read from `s.points` and the series was already normalised, a subsequent
+// pct-change call would compound on top of the normalisation. The contract is:
+//   `originalPoints` — immutable raw values, set on first load
+//   `points`         — the currently displayed transform (= originalPoints if raw)
+// 'raw' must copy originalPoints back — returning `s` unchanged is a real bug
+// because `s.points` may currently be transformed output.
+function applyTransform(s: DataSeries, t: Transform): DataPoint[] {
+  if (t === 'raw') return s.originalPoints
   const fn = t === 'cumReturn' ? toCumReturn : t === 'normalize' ? toNormalized : toPctChange
-  return { ...s, points: fn(s.points) }
+  return fn(s.originalPoints)
 }
 
 export function OperationsPanel() {
   const { activeSeries, updateSeries, setRightPanel } = useGraphStore()
 
   const transform = (t: Transform) => {
-    for (const s of activeSeries) updateSeries(s.id, { points: applyTransform(s, t).points })
+    for (const s of activeSeries) updateSeries(s.id, { points: applyTransform(s, t) })
   }
 
   return (
@@ -2443,13 +2474,13 @@ export function DBManager() {
           className="flex-1 text-sm"
         />
         <Button onClick={handleAdd} disabled={!name.trim()} size="sm">
-          <Plus className="h-4 w-4 mr-1" /> Browse & Add
+          <Plus className="h-4 w-4 mr-2" /> Browse & Add
         </Button>
       </div>
 
       <div className="space-y-2">
         {externalDBs.length === 0 && (
-          <p className="text-sm text-gray-400">No external databases configured.</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">No external databases configured.</p>
         )}
         {externalDBs.map(db => (
           <div key={db.id} className="flex items-center gap-3 rounded-lg border border-gray-200 dark:border-gray-800 p-3">
@@ -2459,7 +2490,7 @@ export function DBManager() {
             }
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{db.name}</p>
-              <p className="text-xs text-gray-400 truncate">{db.path}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{db.path}</p>
             </div>
             <button
               onClick={async () => {
@@ -2515,7 +2546,7 @@ export function Personalisation() {
       </div>
 
       <div className="space-y-3">
-        <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Graph Color Palette</h3>
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Graph Colour Palette</h3>
         <div className="grid grid-cols-2 gap-2">
           {Object.entries(PALETTES).map(([key, colors]) => (
             <button
@@ -2627,7 +2658,12 @@ files:
   - "!{.env,.env.*,.npmrc,pnpm-lock.yaml}"
   - "!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}"
 asarUnpack:
+  # Native modules must live outside app.asar — the OS dynamic loader cannot
+  # open .node binaries from inside an asar archive. Without these entries,
+  # better-sqlite3 fails at runtime with "Could not locate the bindings file".
   - resources/**
+  - "**/*.node"
+  - "**/node_modules/better-sqlite3/**"
 win:
   executableName: TimeSeriesVisualiser
 nsis:
@@ -2699,6 +2735,19 @@ git commit -m "feat: electron-builder packaging config"
 
 ---
 
+### Task 15: CSV Export **[deferred — out of scope for v1]**
+
+The enum `IPC.DIALOG_EXPORT_SERIES` in `src/shared/ipc-channels.ts` is reserved for a future CSV export feature and is intentionally left unwired in v1. Do **not** plumb it through preload or ipc.ts until this task is activated.
+
+**When activated, scope will be:**
+- Main: `ipcMain.handle(IPC.DIALOG_EXPORT_SERIES, ...)` showing a save dialog and writing CSV of the given series.
+- Preload: expose `window.tsv.dialog.exportSeries(seriesId: string)` on the bridge.
+- Renderer: add `ipc.dialog.exportSeries` wrapper in `src/renderer/lib/ipc.ts` and a menu entry in `SaveMenu.tsx` (Task 12).
+
+Keeping the enum entry now avoids future churn to the channel contract. Flagged in planner review during v1 build and consciously deferred by team-lead.
+
+---
+
 ## Self-Review
 
 ### 1. Spec Coverage Check
@@ -2720,7 +2769,7 @@ git commit -m "feat: electron-builder packaging config"
 | Toggle between file/paste via Selector | Task 9 (SegmentGroup) |
 | "Add to Graph" button navigates to graph tab | Task 9 (UploadTab) |
 | Settings: external DB path management | Task 13 (DBManager) |
-| Settings: theme + color palette | Task 13 (Personalisation) |
+| Settings: theme + colour palette | Task 13 (Personalisation) |
 | Collapsible sidebar with 2 main tabs + settings | Task 6 (Sidebar) |
 | Cumulative return transform | Task 7 (transforms.ts) |
 | Normalize + % change transforms | Task 7 (transforms.ts) |
