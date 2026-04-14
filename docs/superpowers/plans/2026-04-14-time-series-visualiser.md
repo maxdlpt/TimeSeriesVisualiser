@@ -1625,6 +1625,8 @@ export function PasteTable({ onSeries }: Props) {
 
 - [ ] **Step 6: Replace UploadTab stub with real implementation**
 
+> **Build-time annotation (post-audit, 2026-04-14):** As built at `6f84411@src/renderer/components/tabs/UploadTab.tsx` (see tracker #19, completed), the real implementation diverges from the snippet below in four places; the snippet is preserved for design intent. (1) The `segment-group.tsx` wrapper landed as a named export `Selector<T>` during Task 8 (tracker #9), not `BasicSegmentGroup` — the import becomes `import { Selector } from '../ui/segment-group'`. (2) The Zustand subscription at lines 1645–1650 below is broken as written: `useAppStore(s => ({ addSeries: useGraphStore.getState().addSeries, activeSeries: useGraphStore.getState().activeSeries, setActiveTab: s.setActiveTab }))` reads from `useGraphStore` inside a `useAppStore` selector, which does not subscribe the component to graph-store changes. As built, UploadTab uses two separate selectors — `useAppStore((s) => s.colorPalette)` and `useGraphStore((s) => s.activeSeries.length)` — and reaches for `useGraphStore.getState()` / `useAppStore.getState()` only inside event handlers (`addToGraph`) where one-shot reads are correct. (3) The JSX at lines 1671–1675 uses the wrapper's actual API: `<Selector<Mode> options={[{ label: 'File', value: 'file' }, { label: 'Paste', value: 'paste' }]} value={mode} onChange={onModeChange} />`, where `onModeChange` clears `pendingSeries` before flipping `mode` so stale rows can't leak across the switch. (4) The Note below the code block originally described an extension to be performed during integration; that extension already shipped in Task 8, so the note is rewritten as a pointer to the real API rather than a TODO.
+
 ```tsx
 // src/renderer/components/tabs/UploadTab.tsx
 import { useState, useCallback } from 'react'
@@ -1694,7 +1696,7 @@ export function UploadTab() {
 }
 ```
 
-> **Note:** The `BasicSegmentGroup` component from the spec takes `frameworks` strings. For this app, extend it to accept `items` prop with `{ label, value }` objects and a controlled `value`/`onValueChange`. Edit `segment-group.tsx` accordingly during integration.
+> **Note (post-audit, 2026-04-14):** The spec's `BasicSegmentGroup` has been superseded by the `Selector<T>` wrapper that shipped in Task 8 at `src/renderer/components/ui/segment-group.tsx`. Its API is `{ options: { label: string; value: T }[]; value: T; onChange: (value: T) => void }` — `Selector<T>` de-nulls the underlying ark-ui `details.value: string | null` so consumers get a clean typed value. No further extension work is required during UploadTab integration; import the named export directly.
 
 - [ ] **Step 7: Commit**
 
@@ -1710,6 +1712,8 @@ git commit -m "feat: upload tab with file drop zone and paste table"
 **Files:**
 - Create: `src/renderer/components/graph/GraphCanvas.tsx`
 - Modify: `src/renderer/components/tabs/GraphTab.tsx`
+
+> **Build-time annotation (post-audit, 2026-04-14):** As built, `GraphCanvas.tsx` was inlined directly into `GraphTab.tsx` rather than landing as a separate component — `pivotSeries()` and the `<AreaChart>` JSX live in `src/renderer/components/tabs/GraphTab.tsx` (see tracker #15, completed). The `src/renderer/hooks/` directory was not created; `useGraphZoom` (scroll-wheel + drag-select zoom) and the next-colour-from-palette hook are deferred-scope and not yet implemented. The Step-1 snippet below is preserved for design intent — re-instate the split if zoom or palette cycling becomes a real product requirement.
 
 - [ ] **Step 1: Create `src/renderer/components/graph/GraphCanvas.tsx`**
 
@@ -1865,7 +1869,7 @@ import { AddLinePanel } from '../graph/AddLinePanel'
 import { OperationsPanel } from '../graph/OperationsPanel'
 import { Button } from '../ui/button'
 import { Plus, Sliders } from 'lucide-react'
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence, motion } from 'motion/react'
 
 export function GraphTab() {
   const rightPanel = useGraphStore(s => s.rightPanel)
@@ -1962,7 +1966,7 @@ This is the "where to add from" selector — Local Memory is separated from exte
 ```tsx
 import { useState } from 'react'
 import { ChevronDown } from 'lucide-react'
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence, motion } from 'motion/react'
 import { useDBStore } from '../../store/db'
 
 interface Source {
@@ -2091,7 +2095,7 @@ Accordion table using the interactive-series-table pattern: each row shows Name 
 ```tsx
 import { useState, useEffect } from 'react'
 import { ChevronDown, Search } from 'lucide-react'
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence, motion } from 'motion/react'
 import { SeriesPreviewChart } from './SeriesPreviewChart'
 import type { DBRecord } from '../../../shared/types'
 
@@ -2426,6 +2430,8 @@ git commit -m "feat: operations panel with transforms and save menu"
 - Create: `src/renderer/components/settings/DBManager.tsx`
 - Create: `src/renderer/components/settings/Personalisation.tsx`
 - Modify: `src/renderer/components/tabs/SettingsTab.tsx`
+
+> **Build-time annotation (post-audit, 2026-04-14):** As built, `SettingsTab.tsx` inlines theme selection, palette selection, and the external-DB list directly rather than splitting into `DBManager.tsx` + `Personalisation.tsx` sub-components (see tracker #12, completed; the DB-browse file-dialog wiring is tracked separately as #21). The Step-1 / Step-2 snippets below are preserved for design intent — re-instate the split if either section grows beyond ~50 lines or needs to be reused outside SettingsTab.
 
 - [ ] **Step 1: Create `DBManager.tsx`**
 
