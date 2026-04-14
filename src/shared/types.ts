@@ -14,6 +14,19 @@ export interface DataSeries {
   color?: string
 }
 
+/**
+ * Wire-format series as it crosses the IPC boundary: dates serialised as
+ * ISO strings (YYYY-MM-DD), no renderer-only fields (source, dbId, color).
+ * Consumers reshape into `DataSeries` in the renderer.
+ */
+export interface RawSeries {
+  id: string
+  name: string
+  code: string
+  description: string
+  points: { date: string; value: number }[]
+}
+
 export interface DBRecord {
   id: string
   name: string

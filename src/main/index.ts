@@ -1,6 +1,7 @@
 import { app, BrowserWindow } from 'electron'
 import { join } from 'path'
 import { electronApp, is } from '@electron-toolkit/utils'
+import { registerHandlers } from './ipc/handlers'
 
 function createWindow(): void {
   const win = new BrowserWindow({
@@ -29,6 +30,7 @@ function createWindow(): void {
 app.whenReady().then(() => {
   electronApp.setAppUserModelId('com.tsv.app')
 
+  registerHandlers()
   createWindow()
 
   app.on('activate', () => {
