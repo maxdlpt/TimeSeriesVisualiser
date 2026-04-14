@@ -84,6 +84,19 @@ describe('SettingsTab', () => {
     expect(screen.getByText('Prices')).toBeInTheDocument()
   })
 
+  it('renders the "unreachable — re-checked on next startup" hint for unreachable DBs only', () => {
+    useDBStore.setState({
+      externalDBs: [
+        { id: 'a', name: 'Macro', path: 'C:/data/macro.db', reachable: true },
+        { id: 'b', name: 'Prices', path: '/tmp/prices.db', reachable: false },
+      ],
+    })
+    render(<SettingsTab />)
+    // The hint appears exactly once: on the unreachable row.
+    const hints = screen.getAllByText(/unreachable\s*—\s*re-checked on next startup/i)
+    expect(hints).toHaveLength(1)
+  })
+
   it('renders the "Browse for DB file" button enabled', () => {
     render(<SettingsTab />)
     const addButton = screen.getByRole('button', { name: /browse for db file/i })
@@ -131,7 +144,11 @@ describe('SettingsTab', () => {
     expect(screen.getByText('C:/data/macro.db')).toBeInTheDocument()
   })
 
-  it('browse invalid DB: checkPath=false shows inline error, nothing added/persisted', async () => {
+  it('browse invalid DB: checkPath=false adds DB with reachable:false and persists', async () => {
+    // Per Task #23: unreachable DBs are added to the list (harmless, filtered by
+    // AddLinePanel) rather than rejected with a banner. This enables the self-
+    // heal model where a DB that was added when reachable stays in the list even
+    // if temporarily offline, and the startup sweep later flips it back.
     vi.mocked(ipc.dialog.openDB).mockResolvedValue('/tmp/garbage.db')
     vi.mocked(ipc.external.checkPath).mockResolvedValue(false)
     const user = userEvent.setup()
@@ -139,10 +156,20 @@ describe('SettingsTab', () => {
 
     await user.click(screen.getByRole('button', { name: /browse for db file/i }))
 
-    await waitFor(() =>
-      expect(screen.getByRole('alert')).toHaveTextContent(/garbage\.db/i),
-    )
-    expect(useDBStore.getState().externalDBs).toHaveLength(0)
-    expect(ipc.settings.save).not.toHaveBeenCalled()
+    await waitFor(() => expect(useDBStore.getState().externalDBs).toHaveLength(1))
+    const added = useDBStore.getState().externalDBs[0]
+    expect(added.path).toBe('/tmp/garbage.db')
+    expect(added.name).toBe('garbage')
+    expect(added.reachable).toBe(false)
+
+    // Persisted with reachable:false.
+    expect(ipc.settings.save).toHaveBeenCalledWith({
+      theme: 'system',
+      colorPalette: 'default',
+      externalDBs: [added],
+    })
+
+    // No banner on add-with-false path.
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 })

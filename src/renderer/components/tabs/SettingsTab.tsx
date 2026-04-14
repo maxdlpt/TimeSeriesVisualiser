@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { AlertCircle, CheckCircle, FolderOpen } from 'lucide-react'
 import { useAppStore } from '../../store/app'
 import { useDBStore } from '../../store/db'
@@ -20,27 +20,24 @@ function deriveDBName(path: string): string {
 export function SettingsTab() {
   const { theme, setTheme, colorPalette, setColorPalette } = useAppStore()
   const { externalDBs, addExternalDB } = useDBStore()
-  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     applyTheme(theme)
   }, [theme])
 
+  // Task #23: unreachable DBs are added with reachable:false (self-heal model)
+  // rather than rejected. AddLinePanel filters the picker by reachable at
+  // AddLinePanel.tsx:33-39, so entries are harmless until the startup sweep
+  // re-probes them and flips reachable back on.
   async function handleBrowseForDB(): Promise<void> {
-    setError(null)
     const path = await ipc.dialog.openDB()
     if (!path) return
     const reachable = await ipc.external.checkPath(path)
-    if (!reachable) {
-      const basename = path.split(/[\\/]/).pop() ?? path
-      setError(`Couldn't open '${basename}' — not a valid TimeSeriesVisualiser database.`)
-      return
-    }
     const newDB = {
       id: crypto.randomUUID(),
       name: deriveDBName(path),
       path,
-      reachable: true,
+      reachable,
     }
     addExternalDB(newDB)
     // Persist the full AppSettings snapshot using the post-add store state.
@@ -110,15 +107,6 @@ export function SettingsTab() {
           </Button>
         </div>
 
-        {error && (
-          <p
-            role="alert"
-            className="text-sm text-red-600 dark:text-red-400"
-          >
-            {error}
-          </p>
-        )}
-
         <div className="space-y-2">
           {externalDBs.length === 0 && (
             <p className="text-sm text-gray-400 dark:text-gray-500">No external databases configured.</p>
@@ -135,6 +123,11 @@ export function SettingsTab() {
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{db.name}</p>
                 <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{db.path}</p>
+                {!db.reachable && (
+                  <p className="text-xs text-red-400 dark:text-red-400">
+                    unreachable — re-checked on next startup
+                  </p>
+                )}
               </div>
             </div>
           ))}
