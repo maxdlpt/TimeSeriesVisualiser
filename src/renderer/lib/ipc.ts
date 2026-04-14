@@ -11,9 +11,9 @@ function rawToDataSeries(
     source,
     dbId,
     points,
-    // Snapshot copy: 'Reset to Raw' must restore these exactly even after
-    // an in-place mutation of `points`.
-    originalPoints: [...points],
+    // Defensive per-element clone: 'Reset to Raw' must restore these exactly
+    // even after an in-place mutation of any point's `value` or `date`.
+    originalPoints: points.map((p) => ({ ...p })),
   }
 }
 

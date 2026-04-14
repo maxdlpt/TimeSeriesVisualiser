@@ -20,19 +20,23 @@ export function parseCSVText(csvText: string): DataSeries[] {
   const dateCol = headers[0]
   const valueHeaders = headers.slice(1)
 
-  return valueHeaders.map(col => ({
-    id: makeId(),
-    name: col,
-    code: col.toUpperCase().replace(/\s+/g, '_'),
-    description: '',
-    source: 'memory' as const,
-    points: rows
+  return valueHeaders.map(col => {
+    const points = rows
       .map(row => ({
         date: new Date(row[dateCol]),
         value: parseFloat(row[col]),
       }))
-      .filter(p => !isNaN(p.date.getTime()) && !isNaN(p.value)),
-  }))
+      .filter(p => !isNaN(p.date.getTime()) && !isNaN(p.value))
+    return {
+      id: makeId(),
+      name: col,
+      code: col.toUpperCase().replace(/\s+/g, '_'),
+      description: '',
+      source: 'memory' as const,
+      points,
+      originalPoints: points.map(p => ({ ...p })),
+    }
+  })
 }
 
 export function parseExcelBuffer(buffer: ArrayBuffer): DataSeries[] {
