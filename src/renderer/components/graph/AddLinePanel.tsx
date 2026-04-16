@@ -1,72 +1,383 @@
-import { useEffect, useMemo, useState } from 'react'
-import { X, Database } from 'lucide-react'
-import { motion } from 'motion/react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { AlertCircle, Check, ChevronDown, Database, Upload, X } from 'lucide-react'
+import { AnimatePresence, motion } from 'motion/react'
 import { useGraphStore } from '../../store/graph'
 import { useDBStore } from '../../store/db'
+import { useAppStore } from '../../store/app'
 import { ipc } from '../../lib/ipc'
+import { getColor } from '../../lib/colors'
+import { isDarkTheme } from '../../lib/theme'
+import { toGeomIndex } from '../../lib/transforms'
+import { cn } from '../../lib/utils'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
-import type { DBRecord } from '../../../shared/types'
+import { AreaChart, Area } from '../ui/area-chart'
+import type { CustomPaletteEntry, DBRecord, DataSeries, ExternalDB } from '../../../shared/types'
+import { inferFreqFromRecord, formatFreq } from '../../lib/freq'
 
-// Source identifies where the list of records comes from. 'memory' is the
-// built-in memory DB; anything else is an external DB id from useDBStore.
 type Source = 'memory' | string
 
-interface ExternalSourceRef {
-  id: string
-  name: string
-  path: string
+const PANEL_FONT_STYLE = {
+  fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif",
 }
 
-export function AddLinePanel(): JSX.Element {
-  const { setRightPanel, addSeries } = useGraphStore()
+function formatDateRange(startDate: string, endDate: string): string {
+  const fmt = (iso: string) =>
+    new Date(iso).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+  return `${fmt(startDate)} – ${fmt(endDate)}`
+}
+
+// ─── Source Dropdown ──────────────────────────────────────────────────────────
+
+interface SourceDropdownProps {
+  source: Source
+  onSelect: (source: Source) => void
+  externalDBs: ExternalDB[]
+  onUpload: () => void
+}
+
+function SourceDropdown({ source, onSelect, externalDBs, onUpload }: SourceDropdownProps) {
+  const [open, setOpen] = useState(false)
+  const wrapperRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: MouseEvent): void => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  const label =
+    source === 'memory'
+      ? 'Local Memory'
+      : (externalDBs.find((db) => db.id === source)?.name ?? 'Select Source')
+
+  const handleSelect = (s: Source, reachable: boolean): void => {
+    if (!reachable) return
+    onSelect(s)
+    setOpen(false)
+  }
+
+  return (
+    <div ref={wrapperRef} className="relative w-full">
+      <button
+        type="button"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+        className={cn(
+          'w-full inline-flex items-center justify-between gap-2 rounded-md text-sm font-medium',
+          'border border-input bg-background px-3 h-9',
+          'hover:bg-accent hover:text-accent-foreground',
+          'transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2',
+        )}
+      >
+        <span className="flex items-center gap-2 min-w-0">
+          <Database className="h-3.5 w-3.5 shrink-0 text-blue-500" />
+          <span className="truncate">{label}</span>
+        </span>
+        <motion.span
+          animate={{ rotate: open ? 180 : 0 }}
+          transition={{ duration: 0.2, ease: 'easeInOut' }}
+          className="shrink-0"
+        >
+          <ChevronDown className="h-4 w-4" />
+        </motion.span>
+      </button>
+
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            role="listbox"
+            initial={{ opacity: 0, y: -10, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.95 }}
+            transition={{ duration: 0.2, ease: 'easeOut' }}
+            className={cn(
+              'absolute top-[calc(100%+0.35rem)] left-0 right-0 z-50',
+              'overflow-hidden rounded-md',
+              'bg-slate-100 dark:bg-zinc-900',
+              'border-2 border-slate-200 dark:border-zinc-800',
+              'shadow-lg',
+            )}
+          >
+            <motion.div
+              initial="hidden"
+              animate="visible"
+              variants={{ visible: { transition: { staggerChildren: 0.03 } } }}
+            >
+              <motion.button
+                type="button"
+                role="option"
+                aria-selected={source === 'memory'}
+                onClick={() => handleSelect('memory', true)}
+                variants={{ hidden: { opacity: 0, x: -20 }, visible: { opacity: 1, x: 0 } }}
+                className={cn(
+                  'w-full flex items-center gap-2 px-3 py-2 text-sm text-left',
+                  'bg-slate-50 hover:bg-slate-200 dark:bg-zinc-900 dark:hover:bg-zinc-800',
+                  'transition-colors duration-150',
+                  source === 'memory' && 'font-medium',
+                )}
+              >
+                <Database className="h-3.5 w-3.5 shrink-0 text-blue-500" />
+                <span className="flex-1">Local Memory</span>
+                {source === 'memory' && <Check className="h-3.5 w-3.5 shrink-0" />}
+              </motion.button>
+
+              {externalDBs.length > 0 && (
+                <div className="border-t-2 border-slate-200 dark:border-zinc-800" />
+              )}
+
+              {externalDBs.map((db) => (
+                <motion.button
+                  key={db.id}
+                  type="button"
+                  role="option"
+                  aria-selected={source === db.id}
+                  aria-disabled={!db.reachable}
+                  onClick={() => handleSelect(db.id, db.reachable)}
+                  variants={{ hidden: { opacity: 0, x: -20 }, visible: { opacity: 1, x: 0 } }}
+                  className={cn(
+                    'w-full flex items-center gap-2 px-3 py-2 text-sm text-left',
+                    'border-b-2 border-slate-200 last:border-b-0 dark:border-zinc-800',
+                    'transition-colors duration-150',
+                    db.reachable
+                      ? 'bg-slate-50 hover:bg-slate-200 dark:bg-zinc-900 dark:hover:bg-zinc-800'
+                      : 'opacity-40 cursor-not-allowed bg-slate-50 dark:bg-zinc-900',
+                    source === db.id && 'font-medium',
+                  )}
+                >
+                  <Database className="h-3.5 w-3.5 shrink-0" />
+                  <span className="flex-1 truncate">{db.name}</span>
+                  {!db.reachable && <AlertCircle className="h-3.5 w-3.5 shrink-0 text-red-400" />}
+                  {source === db.id && db.reachable && <Check className="h-3.5 w-3.5 shrink-0" />}
+                </motion.button>
+              ))}
+
+              <div className="border-t-2 border-slate-200 dark:border-zinc-800" />
+              <motion.button
+                type="button"
+                onClick={() => { setOpen(false); onUpload() }}
+                variants={{ hidden: { opacity: 0, x: -20 }, visible: { opacity: 1, x: 0 } }}
+                className={cn(
+                  'w-full flex items-center gap-2 px-3 py-2 text-sm text-left',
+                  'bg-slate-50 hover:bg-slate-200 dark:bg-zinc-900 dark:hover:bg-zinc-800',
+                  'transition-colors duration-150 text-muted-foreground hover:text-foreground',
+                )}
+              >
+                <Upload className="h-3.5 w-3.5 shrink-0" />
+                <span className="flex-1">Upload data…</span>
+              </motion.button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
+// ─── Series Row (accordion item) ─────────────────────────────────────────────
+
+interface SeriesRowProps {
+  record: DBRecord
+  source: Source
+  sourcePath: string | null
+  sourceDbId: string | null
+  onAdd: (series: DataSeries) => void
+  colorPalette: string
+  colorIndex: number
+  customPalettes: Record<string, CustomPaletteEntry>
+  isDark: boolean
+  expanded: boolean
+  onToggle: () => void
+}
+
+function SeriesRow({
+  record,
+  source,
+  sourcePath,
+  sourceDbId,
+  onAdd,
+  colorPalette,
+  colorIndex,
+  customPalettes,
+  isDark,
+  expanded,
+  onToggle,
+}: SeriesRowProps) {
+  const [series, setSeries] = useState<DataSeries | null>(null)
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (!expanded || series !== null) return
+    let cancelled = false
+    setLoading(true)
+
+    const fetcher =
+      source === 'memory'
+        ? ipc.memory.getSeries(record.id)
+        : sourcePath && sourceDbId
+          ? ipc.external.getSeries(sourcePath, record.id, sourceDbId)
+          : Promise.resolve(null)
+
+    fetcher
+      .then((result) => {
+        if (!cancelled && result) {
+          setSeries({ ...result, color: getColor(colorPalette, colorIndex, customPalettes, isDark) })
+        }
+      })
+      .catch(() => { /* preview failure is non-critical */ })
+      .finally(() => { if (!cancelled) setLoading(false) })
+
+    return () => { cancelled = true }
+  }, [expanded, series, source, sourcePath, sourceDbId, record.id, colorPalette, colorIndex, customPalettes, isDark])
+
+  const previewData = useMemo(() => {
+    if (!series) return []
+    const geomPts = toGeomIndex(series.points)
+    return geomPts.map((p) => ({ date: p.date, [record.code]: p.value }))
+  }, [series, record.code])
+
+  return (
+    <div className="border-b border-border last:border-b-0">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="w-full flex items-start justify-between gap-2 px-3 py-2.5 text-left hover:bg-accent/30 transition-colors"
+      >
+        <div className="flex-1 min-w-0">
+          <div className="flex items-baseline gap-2 flex-wrap">
+            <span className="text-sm font-medium text-foreground">{record.name}</span>
+            <span className="text-xs text-muted-foreground">
+              {formatFreq(inferFreqFromRecord(record.pointCount, record.startDate, record.endDate))}
+            </span>
+          </div>
+          <div className="text-xs text-muted-foreground mt-0.5">
+            {formatDateRange(record.startDate, record.endDate)}
+          </div>
+        </div>
+        <motion.div
+          animate={{ rotate: expanded ? 180 : 0 }}
+          transition={{ duration: 0.2, ease: 'easeInOut' }}
+          className="shrink-0 mt-0.5"
+        >
+          <ChevronDown className="h-4 w-4 text-muted-foreground" />
+        </motion.div>
+      </button>
+
+      <AnimatePresence initial={false}>
+        {expanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2, ease: 'easeOut' }}
+            className="overflow-hidden border-t border-border bg-muted/20"
+          >
+            <div className="p-3 space-y-3">
+              {loading ? (
+                <p className="text-xs text-muted-foreground py-4 text-center">Loading preview…</p>
+              ) : series && previewData.length > 0 ? (
+                <>
+                  <div className="h-28">
+                    <AreaChart
+                      data={previewData}
+                      xDataKey="date"
+                      aspectRatio="auto"
+                      className="h-full"
+                      animationDuration={350}
+                      margin={{ top: 0, right: 0, bottom: 0, left: 0 }}
+                    >
+                      <Area
+                        dataKey={record.code}
+                        stroke={getColor(colorPalette, 0, customPalettes, isDark)}
+                        fill={getColor(colorPalette, 0, customPalettes, isDark)}
+                        fillOpacity={0.15}
+                      />
+                    </AreaChart>
+                  </div>
+                  {record.description && (
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      {record.description}
+                    </p>
+                  )}
+                  <Button
+                    size="sm"
+                    className="w-full"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onAdd(series)
+                      onToggle()
+                    }}
+                  >
+                    Add to Graph
+                  </Button>
+                </>
+              ) : (
+                <p className="text-xs text-muted-foreground py-4 text-center">No preview available.</p>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
+// ─── AddLinePanel ─────────────────────────────────────────────────────────────
+
+interface AddLinePanelProps {
+  placement: 'left' | 'below'
+  onClose?: () => void
+}
+
+export function AddLinePanel({ placement, onClose }: AddLinePanelProps): JSX.Element {
+  const { setRightPanel, addSeries, activeSeries } = useGraphStore()
   const externalDBs = useDBStore((s) => s.externalDBs)
+  const colorPalette   = useAppStore((s) => s.colorPalette)
+  const customPalettes = useAppStore((s) => s.customPalettes)
+  const theme          = useAppStore((s) => s.theme)
+  const setActiveTab   = useAppStore((s) => s.setActiveTab)
+  const isDark         = isDarkTheme(theme)
 
   const [source, setSource] = useState<Source>('memory')
   const [records, setRecords] = useState<DBRecord[]>([])
+  const [expandedId, setExpandedId] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
 
-  // Only reachable external DBs are offered — unreachable paths would raise
-  // noisy errors and the user can't do anything about them from here.
-  const sources = useMemo<ExternalSourceRef[]>(
-    () =>
-      externalDBs
-        .filter((db) => db.reachable)
-        .map((db) => ({ id: db.id, name: db.name, path: db.path })),
-    [externalDBs],
+  const sourceRef = useMemo(
+    () => (source === 'memory' ? null : (externalDBs.find((db) => db.id === source) ?? null)),
+    [source, externalDBs],
   )
 
-  // Fetch the record list for the currently selected source.
   useEffect(() => {
     let cancelled = false
     setLoading(true)
     setError(null)
+    setRecords([])
+    setExpandedId(null)
 
     const fetcher =
       source === 'memory'
         ? ipc.memory.listSeries()
-        : (() => {
-            const ref = sources.find((r) => r.id === source)
-            return ref ? ipc.external.listSeries(ref.path) : Promise.resolve<DBRecord[]>([])
-          })()
+        : sourceRef
+          ? ipc.external.listSeries(sourceRef.path)
+          : Promise.resolve<DBRecord[]>([])
 
     fetcher
-      .then((list) => {
-        if (!cancelled) setRecords(list)
-      })
-      .catch((err) => {
-        if (!cancelled) setError(err instanceof Error ? err.message : String(err))
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
+      .then((list) => { if (!cancelled) setRecords(list) })
+      .catch((err) => { if (!cancelled) setError(err instanceof Error ? err.message : String(err)) })
+      .finally(() => { if (!cancelled) setLoading(false) })
 
-    return () => {
-      cancelled = true
-    }
-  }, [source, sources])
+    return () => { cancelled = true }
+  }, [source, sourceRef])
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -79,103 +390,105 @@ export function AddLinePanel(): JSX.Element {
     )
   }, [records, query])
 
-  const handlePick = async (rec: DBRecord): Promise<void> => {
-    try {
-      const series =
-        source === 'memory'
-          ? await ipc.memory.getSeries(rec.id)
-          : await (async () => {
-              const ref = sources.find((r) => r.id === source)
-              return ref ? ipc.external.getSeries(ref.path, rec.id, ref.id) : null
-            })()
-      if (series) addSeries(series)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-    }
-  }
+  const handleAdd = useCallback(
+    (series: DataSeries): void => {
+      addSeries(series)
+      setRightPanel(null)
+    },
+    [addSeries, setRightPanel],
+  )
 
   return (
     <motion.div
-      initial={{ x: '100%' }}
-      animate={{ x: 0 }}
-      exit={{ x: '100%' }}
-      transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-      className="flex flex-col gap-4 p-4 h-full w-80 bg-white dark:bg-gray-950 border-l border-gray-200 dark:border-gray-800 shadow-xl"
+      ref={panelRef}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.2, ease: 'easeOut' }}
+      className={cn(
+        'flex flex-col w-[300px] shrink-0 gap-6',
+        placement === 'below' && 'self-start mt-5 pt-5 border-t border-border/30',
+      )}
     >
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Add Line</h3>
+      {/* Title row */}
+      <div className="flex items-start justify-between gap-2">
+        <h2
+          className="text-3xl font-black leading-none text-foreground"
+          style={PANEL_FONT_STYLE}
+        >
+          Add Series
+        </h2>
         <button
           type="button"
-          aria-label="Close Add Line panel"
-          onClick={() => setRightPanel(null)}
-          className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+          aria-label="Close"
+          onClick={() => { setRightPanel(null); onClose?.() }}
+          className="mt-1 shrink-0 text-muted-foreground/50 hover:text-foreground transition-colors"
         >
-          <X className="h-4 w-4" />
+          <X className="h-3.5 w-3.5" />
         </button>
       </div>
 
-      {/* Source picker: memory + each reachable external DB */}
-      <div className="flex flex-wrap gap-1.5">
-        <Button
-          variant={source === 'memory' ? 'default' : 'outline'}
-          size="sm"
-          className="text-xs"
-          onClick={() => setSource('memory')}
-        >
-          <Database className="mr-1 h-3 w-3" />
-          Memory
-        </Button>
-        {sources.map((ref) => (
-          <Button
-            key={ref.id}
-            variant={source === ref.id ? 'default' : 'outline'}
-            size="sm"
-            className="text-xs"
-            onClick={() => setSource(ref.id)}
-          >
-            <Database className="mr-1 h-3 w-3" />
-            {ref.name}
-          </Button>
-        ))}
-      </div>
+      {/* Source */}
+      <section className="space-y-2.5">
+        <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50">
+          Source
+        </p>
+        <SourceDropdown
+          source={source}
+          onSelect={setSource}
+          externalDBs={externalDBs}
+          onUpload={() => { setRightPanel(null); setActiveTab('upload') }}
+        />
+      </section>
 
-      <Input
-        type="search"
-        placeholder="Search series…"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        className="h-8 text-sm"
-      />
+      {/* Search */}
+      <section className="space-y-2.5">
+        <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50">
+          Search
+        </p>
+        <Input
+          type="search"
+          placeholder="Search series…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          className="h-8 text-sm"
+        />
+      </section>
 
-      {/* Record list — scrollable; clicking a row adds it to the chart */}
-      <div className="flex-1 overflow-y-auto -mx-1">
+      {/* Results */}
+      <section className="space-y-2.5">
+        <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50">
+          Results
+        </p>
         {loading ? (
-          <p className="px-1 text-xs text-gray-500 dark:text-gray-400">Loading…</p>
+          <p className="text-xs text-muted-foreground/50">Loading…</p>
         ) : error ? (
-          <p className="px-1 text-xs text-red-600 dark:text-red-400">{error}</p>
+          <p className="text-xs text-destructive">{error}</p>
         ) : filtered.length === 0 ? (
-          <p className="px-1 text-xs text-gray-500 dark:text-gray-400">
+          <p className="text-xs text-muted-foreground/50 italic">
             {records.length === 0 ? 'No series available.' : 'No matches.'}
           </p>
         ) : (
-          <ul className="space-y-1">
-            {filtered.map((r) => (
-              <li key={r.id}>
-                <button
-                  type="button"
-                  onClick={() => void handlePick(r)}
-                  className="w-full rounded-md px-2 py-1.5 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-800"
-                >
-                  <div className="font-medium text-gray-900 dark:text-gray-100">{r.name}</div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400">
-                    {r.code} · {r.pointCount} points
-                  </div>
-                </button>
-              </li>
+          <div className="rounded-lg border border-border overflow-hidden">
+            {filtered.map((r, i) => (
+              <SeriesRow
+                key={r.id}
+                record={r}
+                source={source}
+                sourcePath={sourceRef?.path ?? null}
+                sourceDbId={sourceRef?.id ?? null}
+                onAdd={handleAdd}
+                colorPalette={colorPalette}
+                colorIndex={activeSeries.length + i}
+                customPalettes={customPalettes}
+                isDark={isDark}
+                expanded={expandedId === r.id}
+                onToggle={() => setExpandedId(expandedId === r.id ? null : r.id)}
+              />
             ))}
-          </ul>
+          </div>
         )}
-      </div>
+      </section>
     </motion.div>
   )
 }

@@ -10,9 +10,17 @@ export enum IPC {
   EXTERNAL_GET_SERIES     = 'external:get-series',
   EXTERNAL_CHECK_PATH     = 'external:check-path',
 
+  // External DB write
+  EXTERNAL_SAVE_SERIES    = 'external:save-series',
+  EXTERNAL_DELETE_SERIES  = 'external:delete-series',
+
   // Settings
   SETTINGS_GET            = 'settings:get',
   SETTINGS_SAVE           = 'settings:save',
+
+  // Graph session (restored on next launch)
+  SESSION_GET             = 'session:get',
+  SESSION_SAVE            = 'session:save',
 
   // File dialogs
   DIALOG_OPEN_DB          = 'dialog:open-db',

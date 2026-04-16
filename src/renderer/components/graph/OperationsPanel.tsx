@@ -2,6 +2,7 @@ import { X } from 'lucide-react'
 import { motion } from 'motion/react'
 import { useGraphStore } from '../../store/graph'
 import { toCumReturn, toNormalized, toPctChange } from '../../lib/transforms'
+import { computeMA } from '../../lib/ma'
 import { Button } from '../ui/button'
 import { SaveMenu } from './SaveMenu'
 import type { DataPoint, DataSeries } from '../../../shared/types'
@@ -26,7 +27,20 @@ export function OperationsPanel(): JSX.Element {
   const { activeSeries, updateSeries, setRightPanel } = useGraphStore()
 
   const transform = (t: Transform): void => {
-    for (const s of activeSeries) updateSeries(s.id, { points: applyTransform(s, t) })
+    for (const s of activeSeries) {
+      const newPoints = applyTransform(s, t)
+      // Recompute MA points from the post-transform data so the overlay stays
+      // on the same Y-axis scale as the parent series.  'raw' restores the MA
+      // of originalPoints (which applyTransform already returns for 'raw').
+      const newMAs = (s.movingAverages ?? []).map(ma => ({
+        ...ma,
+        points: computeMA(newPoints, ma.type, ma.window),
+      }))
+      updateSeries(s.id, {
+        points: newPoints,
+        ...(newMAs.length > 0 && { movingAverages: newMAs }),
+      })
+    }
   }
 
   return (

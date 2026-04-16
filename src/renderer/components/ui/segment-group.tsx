@@ -1,8 +1,10 @@
+import type { ReactNode } from 'react'
 import { SegmentGroup } from '@ark-ui/react'
 
 export interface SelectorOption<T extends string> {
   value: T
   label: string
+  icon?: ReactNode
 }
 
 export interface SelectorProps<T extends string> {
@@ -35,8 +37,9 @@ export function Selector<T extends string>({
           <SegmentGroup.Item
             key={option.value}
             value={option.value}
-            className="flex flex-1 items-center justify-center select-none cursor-pointer text-sm font-medium px-4 py-2 z-20 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white data-[state=checked]:text-gray-900 dark:data-[state=checked]:text-white data-disabled:cursor-not-allowed data-disabled:opacity-40 transition-colors duration-200"
+            className="flex flex-1 items-center justify-center gap-1.5 select-none cursor-pointer text-sm font-medium px-4 py-2 z-20 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white data-[state=checked]:text-gray-900 dark:data-[state=checked]:text-white data-disabled:cursor-not-allowed data-disabled:opacity-40 transition-colors duration-200"
           >
+            {option.icon}
             <SegmentGroup.ItemText>{option.label}</SegmentGroup.ItemText>
             <SegmentGroup.ItemControl />
             <SegmentGroup.ItemHiddenInput />

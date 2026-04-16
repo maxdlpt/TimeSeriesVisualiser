@@ -5,7 +5,7 @@ import { initSchema } from '../db/schema'
 import { MemoryDB } from '../db/memory'
 import { ExternalDBReader, checkPathReachable } from '../db/external'
 import { IPC } from '../../shared/ipc-channels'
-import type { AppSettings, RawSeries } from '../../shared/types'
+import type { AppSettings, GraphSession, RawSeries } from '../../shared/types'
 
 export function registerHandlers(): void {
   // Singleton internal memory DB. Initialised here (not at module import time)
@@ -62,9 +62,50 @@ export function registerHandlers(): void {
 
   ipcMain.handle(IPC.EXTERNAL_CHECK_PATH, (_e, filePath: string) => checkPathReachable(filePath))
 
+  ipcMain.handle(IPC.EXTERNAL_SAVE_SERIES, (_e, filePath: string, payload: RawSeries) => {
+    const extDb = new Database(filePath)
+    initSchema(extDb)
+    const extMem = new MemoryDB(extDb)
+    try {
+      extMem.saveSeries(payload)
+    } finally {
+      extDb.close()
+    }
+  })
+
+  ipcMain.handle(IPC.EXTERNAL_DELETE_SERIES, (_e, filePath: string, id: string) => {
+    const extDb = new Database(filePath)
+    initSchema(extDb)
+    const extMem = new MemoryDB(extDb)
+    try {
+      extMem.deleteSeries(id)
+    } finally {
+      extDb.close()
+    }
+  })
+
   ipcMain.handle(IPC.SETTINGS_GET, () => getSettings())
   ipcMain.handle(IPC.SETTINGS_SAVE, (_e, s: AppSettings) => {
     saveSettings(s)
+  })
+
+  const getSession = (): GraphSession | null => {
+    const raw = rawDb
+      .prepare("SELECT value FROM settings WHERE key = 'graph_session'")
+      .get() as { value: string } | undefined
+    if (!raw) return null
+    try { return JSON.parse(raw.value) } catch { return null }
+  }
+
+  const saveSession = (s: GraphSession): void => {
+    rawDb
+      .prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('graph_session', ?)")
+      .run(JSON.stringify(s))
+  }
+
+  ipcMain.handle(IPC.SESSION_GET, () => getSession())
+  ipcMain.handle(IPC.SESSION_SAVE, (_e, s: GraphSession) => {
+    saveSession(s)
   })
 
   ipcMain.handle(IPC.DIALOG_OPEN_DB, async () => {

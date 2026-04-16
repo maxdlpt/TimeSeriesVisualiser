@@ -1,7 +1,9 @@
 import { useEffect } from 'react'
 import { ipc } from '../lib/ipc'
+import { generateComplement } from '../lib/colors'
 import { useDBStore } from '../store/db'
 import { useAppStore } from '../store/app'
+import type { CustomPaletteEntry } from '../../shared/types'
 
 // Task #25: on mount, load persisted settings via `ipc.settings.get()` and
 // push them into the renderer stores. Without this hook, every restart resets
@@ -31,7 +33,25 @@ export function useHydrateSettings(): void {
       .then((settings) => {
         if (cancelled) return
         useAppStore.getState().setTheme(settings.theme)
+        localStorage.setItem('tsv-theme', settings.theme)
         useAppStore.getState().setColorPalette(settings.colorPalette)
+        if (settings.chartMaxWidth) {
+          useAppStore.getState().setChartMaxWidth(settings.chartMaxWidth)
+        }
+        if (settings.customPalettes) {
+          // Migrate pre-v3 palette format: entries were plain string[] arrays.
+          // New format is { light: string[], dark: string[] }. Detect by shape.
+          const raw = settings.customPalettes as Record<string, CustomPaletteEntry | string[]>
+          const migrated: Record<string, CustomPaletteEntry> = {}
+          for (const [name, entry] of Object.entries(raw)) {
+            if (Array.isArray(entry)) {
+              migrated[name] = { light: entry, dark: generateComplement(entry) }
+            } else {
+              migrated[name] = entry
+            }
+          }
+          useAppStore.getState().setCustomPalettes(migrated)
+        }
         useDBStore.getState().setExternalDBs(settings.externalDBs)
         // Flip the flag LAST so gated downstream effects see populated stores.
         useAppStore.getState().setSettingsHydrated()

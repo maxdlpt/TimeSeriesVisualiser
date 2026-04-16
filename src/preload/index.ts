@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { IPC } from '../shared/ipc-channels'
-import type { AppSettings, RawSeries } from '../shared/types'
+import type { AppSettings, GraphSession, RawSeries } from '../shared/types'
 
 contextBridge.exposeInMainWorld('tsv', {
   memory: {
@@ -14,6 +14,10 @@ contextBridge.exposeInMainWorld('tsv', {
     getSeries: (path: string, id: string) =>
       ipcRenderer.invoke(IPC.EXTERNAL_GET_SERIES, path, id),
     checkPath: (path: string) => ipcRenderer.invoke(IPC.EXTERNAL_CHECK_PATH, path),
+    saveSeries: (path: string, payload: RawSeries) =>
+      ipcRenderer.invoke(IPC.EXTERNAL_SAVE_SERIES, path, payload),
+    deleteSeries: (path: string, id: string) =>
+      ipcRenderer.invoke(IPC.EXTERNAL_DELETE_SERIES, path, id),
   },
   settings: {
     get: () => ipcRenderer.invoke(IPC.SETTINGS_GET),
@@ -22,5 +26,9 @@ contextBridge.exposeInMainWorld('tsv', {
   dialog: {
     openDB: () => ipcRenderer.invoke(IPC.DIALOG_OPEN_DB),
     saveDB: (path: string, ids: string[]) => ipcRenderer.invoke(IPC.DIALOG_SAVE_DB, path, ids),
+  },
+  session: {
+    get: () => ipcRenderer.invoke(IPC.SESSION_GET),
+    save: (s: GraphSession) => ipcRenderer.invoke(IPC.SESSION_SAVE, s),
   },
 })

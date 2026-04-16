@@ -1,4 +1,4 @@
-import type { DBRecord, AppSettings, RawSeries } from '../shared/types'
+import type { DBRecord, AppSettings, GraphSession, RawSeries } from '../shared/types'
 
 export interface TsvAPI {
   memory: {
@@ -11,6 +11,8 @@ export interface TsvAPI {
     listSeries: (path: string) => Promise<DBRecord[]>
     getSeries: (path: string, id: string) => Promise<RawSeries | null>
     checkPath: (path: string) => Promise<boolean>
+    saveSeries: (path: string, payload: RawSeries) => Promise<void>
+    deleteSeries: (path: string, id: string) => Promise<void>
   }
   settings: {
     get: () => Promise<AppSettings>
@@ -19,6 +21,10 @@ export interface TsvAPI {
   dialog: {
     openDB: () => Promise<string | null>
     saveDB: (path: string, ids: string[]) => Promise<boolean>
+  }
+  session: {
+    get: () => Promise<GraphSession | null>
+    save: (s: GraphSession) => Promise<void>
   }
 }
 
