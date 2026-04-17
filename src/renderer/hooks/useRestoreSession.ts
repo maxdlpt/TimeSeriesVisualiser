@@ -29,7 +29,7 @@ export function useRestoreSession(): void {
       .get()
       .then((session) => {
         if (!session || session.series.length === 0) return
-        const { addSeries, setZoomDomain, setChartMode, setCumMethod, setCumBaseInput, setShowGrid } = useGraphStore.getState()
+        const { addSeries, setZoomDomain, setChartMode, setCumMethod, setCumBaseInput, setShowGrid, setGraphTitle } = useGraphStore.getState()
         for (const s of session.series) {
           addSeries(deserializeSeries(s))
         }
@@ -43,6 +43,7 @@ export function useRestoreSession(): void {
         if (session.cumMethod)            setCumMethod(session.cumMethod)
         if (session.cumBaseInput)         setCumBaseInput(session.cumBaseInput)
         if (session.showGrid !== undefined) setShowGrid(session.showGrid)
+        if (session.graphTitle)           setGraphTitle(session.graphTitle)
       })
       .catch(() => {})
   }, [settingsHydrated])

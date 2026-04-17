@@ -407,7 +407,7 @@ export function AddLinePanel({ placement, onClose }: AddLinePanelProps): JSX.Ele
       transition={{ duration: 0.2, ease: 'easeOut' }}
       className={cn(
         'flex flex-col w-[300px] shrink-0 gap-6',
-        placement === 'below' && 'self-start mt-5 pt-5 border-t border-border/30',
+        placement === 'below' && 'self-center',
       )}
     >
       {/* Title row */}

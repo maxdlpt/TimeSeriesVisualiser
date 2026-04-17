@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
-import { AnimatePresence, motion, useSpring } from 'motion/react'
-import { BarChart3, ChevronDown, Eye, EyeOff, Plus, X } from 'lucide-react'
+import { AnimatePresence, motion, useMotionValue } from 'motion/react'
+import { ChevronDown, Eye, EyeOff, Plus, RotateCcw, X } from 'lucide-react'
 import { useGraphStore } from '../../store/graph'
 import { useAppStore } from '../../store/app'
 import { Button } from '../ui/button'
@@ -9,17 +9,26 @@ import { AreaChart, Area, XAxis, YAxis, Grid, SegmentBackground, SegmentLineFrom
 import { AddLinePanel } from '../graph/AddLinePanel'
 import { SeriesEditPanel } from '../graph/SeriesEditPanel'
 import { cn } from '../../lib/utils'
+import { Selector } from '../ui/segment-group'
 import { computeMA } from '../../lib/ma'
 import type { ChartMode, CumMethod } from '../../store/graph'
 import { detectFrequency } from '../../lib/freq'
 import type { DataFreq, DataSeries, DataPoint } from '../../../shared/types'
+
+function LineChartIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 32 32" fill="currentColor" xmlns="http://www.w3.org/2000/svg" className={className} aria-hidden="true">
+      <path stroke="currentColor" strokeWidth="1" strokeLinejoin="round" d="M13,15c1.4854,0,2.5544,1.4966,3.6863,3.0811C17.9983,19.918,19.4854,22,22,22c5.6709,0,7.78-10.79,8-12l-1.9678-.3584C27.55,12.2827,25.3938,20,22,20c-1.4854,0-2.5544-1.4966-3.6863-3.0811C17.0017,15.082,15.5146,13,13,13c-4.186,0-7.4448,7.4043-9,11.7617V2H2V28a2.0025,2.0025,0,0,0,2,2H30V28H5.0439C6.5544,22.8574,9.9634,15,13,15Z"/>
+    </svg>
+  )
+}
 
 // ─── WindowDateTicker ─────────────────────────────────────────────────────────
 // Spring-animated date scroller for the time-window header.
 // Same dual-spring logic as the Crosshair DateTicker; styled to match the
 // large bold date display (text-3xl font-black leading-none).
 
-const WIN_ITEM_H = 36 // px — text-3xl font-black: 30 px cap-height + descender room (g, p, y)
+const WIN_ITEM_H = 30 // px — text-2xl font-black cap-height + descender room
 const WIN_FONT_STYLE: CSSProperties = {
   fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif",
 }
@@ -50,11 +59,11 @@ function WindowDateTicker({ currentIndex, labels }: { currentIndex: number; labe
     return i === -1 ? 0 : i
   }, [currentIndex, parts, uniqueYears])
 
-  const monthSpring = useSpring(0, { stiffness: 400, damping: 35 })
-  const yearSpring  = useSpring(0, { stiffness: 400, damping: 35 })
+  const monthMV = useMotionValue(-currentIndex * WIN_ITEM_H)
+  const yearMV  = useMotionValue(-currentYearIndex * WIN_ITEM_H)
 
-  useEffect(() => { monthSpring.set(-currentIndex * WIN_ITEM_H) }, [currentIndex, monthSpring])
-  useEffect(() => { yearSpring.set(-currentYearIndex * WIN_ITEM_H) }, [currentYearIndex, yearSpring])
+  useEffect(() => { monthMV.set(-currentIndex * WIN_ITEM_H) }, [currentIndex, monthMV])
+  useEffect(() => { yearMV.set(-currentYearIndex * WIN_ITEM_H) }, [currentYearIndex, yearMV])
 
   if (labels.length === 0) return null
   const hasYear = parts.some(p => p.year !== '')
@@ -62,11 +71,11 @@ function WindowDateTicker({ currentIndex, labels }: { currentIndex: number; labe
   return (
     <div className="flex items-center gap-1.5" style={{ height: WIN_ITEM_H }}>
       <div className="relative overflow-hidden" style={{ height: WIN_ITEM_H }}>
-        <motion.div className="flex flex-col" style={{ y: monthSpring }}>
+        <motion.div className="flex flex-col" style={{ y: monthMV }}>
           {parts.map((p, i) => (
             // biome-ignore lint/suspicious/noArrayIndexKey: stable ordered index
             <div key={i} className="flex shrink-0 items-center" style={{ height: WIN_ITEM_H }}>
-              <span className="whitespace-nowrap text-3xl font-black tabular-nums leading-none" style={WIN_FONT_STYLE}>
+              <span className="whitespace-nowrap text-2xl font-black tabular-nums leading-none" style={WIN_FONT_STYLE}>
                 {p.month}
               </span>
             </div>
@@ -75,10 +84,10 @@ function WindowDateTicker({ currentIndex, labels }: { currentIndex: number; labe
       </div>
       {hasYear && (
         <div className="relative overflow-hidden" style={{ height: WIN_ITEM_H }}>
-          <motion.div className="flex flex-col" style={{ y: yearSpring }}>
+          <motion.div className="flex flex-col" style={{ y: yearMV }}>
             {uniqueYears.map(year => (
               <div key={year} className="flex shrink-0 items-center" style={{ height: WIN_ITEM_H }}>
-                <span className="whitespace-nowrap text-3xl font-black tabular-nums leading-none" style={WIN_FONT_STYLE}>
+                <span className="whitespace-nowrap text-2xl font-black tabular-nums leading-none" style={WIN_FONT_STYLE}>
                   {year}
                 </span>
               </div>
@@ -515,7 +524,7 @@ function resolveBaseDate(series: DataSeries[], baseInput: string): Date | null {
 }
 
 export function GraphTab(): JSX.Element {
-  const { activeSeries, removeSeries, reorderSeries, toggleSeriesVisibility, updateSeries, rightPanel, setRightPanel, zoomDomain, setZoomDomain, chartMode, setChartMode, cumMethod, setCumMethod, cumBaseInput, setCumBaseInput, showGrid, setShowGrid } = useGraphStore()
+  const { activeSeries, removeSeries, reorderSeries, toggleSeriesVisibility, updateSeries, rightPanel, setRightPanel, zoomDomain, setZoomDomain, chartMode, setChartMode, cumMethod, setCumMethod, cumBaseInput, setCumBaseInput, showGrid, setShowGrid, graphTitle, setGraphTitle } = useGraphStore()
   const activeTab        = useAppStore((s) => s.activeTab)
   const chartMaxWidth    = useAppStore((s) => s.chartMaxWidth)
   const setChartMaxWidth = useAppStore((s) => s.setChartMaxWidth)
@@ -524,7 +533,48 @@ export function GraphTab(): JSX.Element {
   const [selectedSeriesTab, setSelectedSeriesTab] = useState<'format' | 'calculations' | 'save'>('format')
   const selectedSeries = activeSeries.find(s => s.id === selectedSeriesId) ?? null
 
-  const [showTooltip] = useState(true)
+  const [showTooltip, setShowTooltip] = useState(true)
+
+  // ── Export dropdown ───────────────────────────────────────────────────────
+  const [exportOpen, setExportOpen] = useState(false)
+  const exportRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!exportOpen) return
+    const h = (e: MouseEvent) => {
+      if (exportRef.current && !exportRef.current.contains(e.target as Node)) setExportOpen(false)
+    }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [exportOpen])
+
+  const handleExportPNG = useCallback(async () => {
+    setExportOpen(false)
+    const chartEl = document.querySelector('[data-testid="graph-chart"]') as HTMLElement | null
+    if (!chartEl) return
+    try {
+      const r = chartEl.getBoundingClientRect()
+      const pngBuffer = await ipc.capture.rect({ x: r.x, y: r.y, width: r.width, height: r.height })
+      if (!pngBuffer) return
+      const blob = new Blob([pngBuffer as BlobPart], { type: 'image/png' })
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
+    } catch (err) {
+      console.error('Export PNG failed:', err)
+    }
+  }, [])
+
+  // ── Right-click context menu ───────────────────────────────────────────────
+  const [rebaseMenu, setRebaseMenu] = useState<{ date: Date; x: number; y: number } | null>(null)
+  const rebaseMenuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!rebaseMenu) return
+    const h = (e: MouseEvent) => {
+      if (rebaseMenuRef.current && !rebaseMenuRef.current.contains(e.target as Node)) setRebaseMenu(null)
+    }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [rebaseMenu])
 
   // ── Legend drag-and-drop (HTML5, works across wrapped rows) ─────────────────
   const draggedIdRef = useRef<string | null>(null)
@@ -549,14 +599,14 @@ export function GraphTab(): JSX.Element {
   // 36px base (series row) + 22px per MA row
   const chipMinHeight = maxMACount > 0 ? 36 + maxMACount * 22 : undefined
 
-  // Press 'g' to toggle gridlines (origin lines and labels are unaffected).
+  // Press 'g' to toggle gridlines, 't' to toggle the tooltip price label.
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'g' && !e.ctrlKey && !e.metaKey && !e.altKey) {
-        const tag = (e.target as HTMLElement)?.tagName
-        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
-        setShowGrid(!showGrid)
-      }
+      if (e.ctrlKey || e.metaKey || e.altKey) return
+      const tag = (e.target as HTMLElement)?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+      if (e.key === 'g') setShowGrid(!showGrid)
+      if (e.key === 't') setShowTooltip(prev => !prev)
     }
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
@@ -592,8 +642,27 @@ export function GraphTab(): JSX.Element {
   // Whether any panel is open (used by wheel handler to decide scroll vs zoom)
   const panelOpen = selectedSeries !== null || rightPanel !== null
 
+  // Editable graph title — contentEditable is uncontrolled, so we sync from
+  // the store only when the value changes externally (e.g. session restore).
+  const titleRef = useRef<HTMLHeadingElement>(null)
+  const titleSyncedRef = useRef(graphTitle)
+  useEffect(() => {
+    if (titleRef.current && graphTitle !== titleSyncedRef.current) {
+      titleRef.current.textContent = graphTitle
+      titleSyncedRef.current = graphTitle
+    }
+  }, [graphTitle])
+  const handleTitleBlur = useCallback(() => {
+    const text = titleRef.current?.textContent?.trim() || 'New Graph'
+    titleSyncedRef.current = text
+    setGraphTitle(text)
+  }, [setGraphTitle])
+  const handleTitleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') { e.preventDefault(); titleRef.current?.blur() }
+  }, [])
+
   // Measure the header row's rendered top so the left panel title lines up with the date.
-  const chartWrapRef  = useRef<HTMLDivElement>(null)
+  const chartWrapRef   = useRef<HTMLDivElement>(null)
   const headerRowRef   = useRef<HTMLDivElement>(null)
   const [panelTop, setPanelTop] = useState(16)
 
@@ -661,7 +730,8 @@ export function GraphTab(): JSX.Element {
       : activeSeries,
   [activeSeries, chartMode, cumMethod, cumBaseInput])
 
-  const pivoted = useMemo(() => pivotSeries(displaySeries), [displaySeries])
+  const visibleSeries = useMemo(() => displaySeries.filter(s => s.visible !== false), [displaySeries])
+  const pivoted = useMemo(() => pivotSeries(visibleSeries), [visibleSeries])
 
   // Resolved base date for the cumulative-mode base-line
   const resolvedBaseDate = useMemo(() =>
@@ -949,24 +1019,73 @@ export function GraphTab(): JSX.Element {
     setZoomDomain(null)
   }, [setZoomDomain])
 
-  // Right-click on a data point in cumulative mode sets it as the base date
+  // Right-click on chart opens a context menu; crosshair stays frozen (area-chart internal ref)
   const handleRightClickPoint = useCallback(
-    (date: Date): void => {
-      const y = date.getFullYear()
-      const m = date.getMonth() + 1
-      const d = date.getDate()
-      setCumBaseInput(isoDate(y, m, d))
+    (date: Date, clientX: number, clientY: number): void => {
+      setRebaseMenu({ date, x: clientX, y: clientY })
     },
-    [setCumBaseInput],
+    [],
+  )
+
+  const handleCopyValues = useCallback(() => {
+    if (!rebaseMenu) return
+    const t = rebaseMenu.date.getTime()
+    let nearest = pivoted[0]
+    let bestDist = Infinity
+    for (const row of pivoted) {
+      const dist = Math.abs((row.date as Date).getTime() - t)
+      if (dist < bestDist) { bestDist = dist; nearest = row }
+    }
+    if (!nearest) return
+    const lines: string[] = []
+    for (const key of tooltipOrder) {
+      const info = seriesInfoMap.get(key)
+      if (!info) continue
+      const raw = nearest[key]
+      if (typeof raw !== 'number') continue
+      const suffix = chartMode === 'cumulative' ? '' : '%'
+      const formatted = raw < 0
+        ? `(${Math.abs(raw).toFixed(chartMode === 'cumulative' ? 1 : 2)}${suffix})`
+        : `${raw.toFixed(chartMode === 'cumulative' ? 1 : 2)}${suffix}`
+      lines.push(`"${info.name}"\t${formatted}`)
+    }
+    navigator.clipboard.writeText(lines.join('\n')).catch(() => {})
+    setRebaseMenu(null)
+  }, [rebaseMenu, pivoted, tooltipOrder, seriesInfoMap, chartMode])
+
+  const confirmRebase = useCallback(
+    (date: Date): void => {
+      setCumBaseInput(isoDate(date.getFullYear(), date.getMonth() + 1, date.getDate()))
+      if (chartMode !== 'cumulative') setChartMode('cumulative')
+      setRebaseMenu(null)
+    },
+    [setCumBaseInput, setChartMode, chartMode],
   )
 
   return (
     <div className="relative flex h-full w-full">
       <div className="flex flex-1 flex-col min-w-0 overflow-y-auto">
-        {/* Chart viewport — fills visible area; panels rendered below keep it stationary */}
+        {/* Graph title — editable inline, top-left aligned like Upload/Settings tabs */}
+        <div className="flex items-center gap-3 leading-none select-none text-foreground px-8 pt-8 shrink-0" style={WIN_FONT_STYLE}>
+          <LineChartIcon className="h-8 w-8 text-blue-500 shrink-0" />
+          <h2
+            ref={titleRef}
+            contentEditable
+            suppressContentEditableWarning
+            spellCheck={false}
+            onBlur={handleTitleBlur}
+            onKeyDown={handleTitleKeyDown}
+            className="text-4xl font-black leading-none outline-none cursor-text caret-blue-500"
+          >
+            {graphTitle}
+          </h2>
+        </div>
+
+        {/* Chart viewport — flex-1 fills remaining space to center the chart;
+            below-panels sit outside this div so they don't displace it. */}
         <div
           ref={chartWrapRef}
-          className="relative flex-none min-h-full p-4 flex flex-col items-center justify-center"
+          className="relative flex-1 p-4 pb-24 flex flex-col items-center justify-center"
           onDoubleClick={handleDoubleClick}
           onMouseDown={(e) => {
             // Close any open card when the user clicks blank space (the padding/gutter).
@@ -983,36 +1102,36 @@ export function GraphTab(): JSX.Element {
               data-testid="graph-empty-state"
               className="flex flex-1 w-full flex-col items-center justify-center gap-4 text-gray-400 dark:text-gray-500"
             >
-              <BarChart3 className="h-12 w-12 opacity-25" />
+              <LineChartIcon className="h-12 w-12 opacity-25" />
               <p className="text-sm">No series selected.</p>
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setRightPanel('addLine')}
+                onClick={() => { setSelectedSeriesId(null); setRightPanel('addLine') }}
               >
                 <Plus className="mr-1 h-4 w-4" />
                 Add Series
               </Button>
             </div>
           ) : (
-            <div data-testid="graph-chart" className="flex flex-col w-full gap-2" style={{ maxWidth: chartMaxWidth, transition: 'max-width 0.18s ease-out' }}>
-              {/* Header: title left, date window right */}
-              <div ref={headerRowRef} className="flex items-center justify-between -mt-8">
+            <div data-testid="graph-chart" className="relative flex flex-col w-full gap-2" style={{ maxWidth: `min(${chartMaxWidth}px, calc(100% - 32px))`, transition: 'max-width 0.18s ease-out' }}>
+              {/* Header: chart mode left, date window right */}
+              <div ref={headerRowRef} className="flex items-center justify-between">
                 {/* Title dropdown */}
                 <div ref={titleMenuRef} className="relative">
                   <button
                     type="button"
                     onClick={() => setTitleMenuOpen(o => !o)}
-                    className={`flex items-center gap-1.5 text-4xl font-black leading-none select-none ${WIN_COLOR_CLASS} group`}
+                    className={`text-left text-2xl font-black leading-tight select-none ${WIN_COLOR_CLASS} group`}
                     style={WIN_FONT_STYLE}
                   >
                     {chartMode === 'cumulative' ? 'Cumulative Returns' : 'Returns'}
                     <ChevronDown
                       className={cn(
-                        'h-6 w-6 transition-transform duration-150 opacity-40 group-hover:opacity-80',
+                        'inline-block ml-1 h-4 w-4 align-middle transition-transform duration-150 opacity-40 group-hover:opacity-80',
                         titleMenuOpen && 'rotate-180',
                       )}
-                      strokeWidth={3}
+                      strokeWidth={2.5}
                     />
                   </button>
                   <AnimatePresence>
@@ -1047,7 +1166,7 @@ export function GraphTab(): JSX.Element {
                 {uniqueDateLabels.length > 0 && (
                   <div className="flex items-center gap-2">
                     <WindowDateTicker currentIndex={startLabelIdx} labels={uniqueDateLabels} />
-                    <span className={`text-3xl font-black tabular-nums leading-none select-none ${WIN_COLOR_CLASS}`} style={WIN_FONT_STYLE}>–</span>
+                    <span className={`text-2xl font-black tabular-nums leading-none select-none ${WIN_COLOR_CLASS}`} style={WIN_FONT_STYLE}>–</span>
                     <WindowDateTicker currentIndex={endLabelIdx} labels={uniqueDateLabels} />
                   </div>
                 )}
@@ -1065,23 +1184,16 @@ export function GraphTab(): JSX.Element {
                   >
                     <div className="flex items-center gap-4 pb-1 text-sm text-muted-foreground">
                       {/* Method toggle */}
-                      <div className="flex items-center gap-1 rounded-md border border-border p-0.5">
-                        {(['geometric', 'arithmetic'] as CumMethod[]).map(m => (
-                          <button
-                            key={m}
-                            type="button"
-                            onClick={() => setCumMethod(m)}
-                            className={cn(
-                              'rounded px-2.5 py-1 text-xs font-medium transition-colors capitalize',
-                              cumMethod === m
-                                ? 'bg-foreground text-background'
-                                : 'hover:bg-accent',
-                            )}
-                          >
-                            {m}
-                          </button>
-                        ))}
-                      </div>
+                      <Selector<CumMethod>
+                        options={[
+                          { value: 'geometric', label: 'Geometric' },
+                          { value: 'arithmetic', label: 'Arithmetic' },
+                        ]}
+                        value={cumMethod}
+                        onChange={setCumMethod}
+                        className="w-auto"
+                        compact
+                      />
                       {/* Base 100 date — frequency-aware SpinDropdown picker */}
                       <div className="flex items-center gap-1.5">
                         <span className="text-xs text-muted-foreground">Base 100 =</span>
@@ -1091,6 +1203,14 @@ export function GraphTab(): JSX.Element {
                           onChange={setCumBaseInput}
                           freq={dominantFreq}
                         />
+                        <button
+                          type="button"
+                          title="Reset to first common date"
+                          onClick={() => setCumBaseInput('')}
+                          className="rounded p-0.5 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                        >
+                          <RotateCcw className="h-3 w-3" />
+                        </button>
                       </div>
                     </div>
                   </motion.div>
@@ -1098,7 +1218,7 @@ export function GraphTab(): JSX.Element {
               </AnimatePresence>
 
               {/* Chart — capped at 45 vh, never below 180 px */}
-              <div ref={chartAreaRef} className="h-[45vh] min-h-[180px] w-full">
+              <div ref={chartAreaRef} className="relative h-[45vh] min-h-[180px] w-full">
                 <AreaChart
                   key={animKey}
                   data={displayedData}
@@ -1108,14 +1228,14 @@ export function GraphTab(): JSX.Element {
                   animationDuration={600}
                   onSelectionComplete={handleSelectionComplete}
                   onPanDelta={handlePanDelta}
-                  onRightClickPoint={chartMode === 'cumulative' ? handleRightClickPoint : undefined}
-                  showTooltip={showTooltip}
+                  onRightClickPoint={handleRightClickPoint}
+                  freezeTooltip={rebaseMenu !== null}
                 >
                   {showGrid && <Grid origin={chartMode === 'cumulative' ? 100 : 0} />}
                   <XAxis />
                   <YAxis origin={chartMode === 'cumulative' ? 100 : 0} />
                   <Crosshair skipAnimation={isZooming} />
-                  <ChartTooltip
+                  {showTooltip && <ChartTooltip
                     order={tooltipOrder}
                     rows={(dataKey, color, value) => {
                       const info = seriesInfoMap.get(dataKey)
@@ -1148,7 +1268,7 @@ export function GraphTab(): JSX.Element {
                         </div>
                       )
                     }}
-                  />
+                  />}
                   {/* Origin line — horizontal at 100 (cumulative) or 0 (returns) */}
                   <OriginLine value={chartMode === 'cumulative' ? 100 : 0} />
                   {/* Base line — vertical at the resolved base date (cumulative only) */}
@@ -1158,7 +1278,7 @@ export function GraphTab(): JSX.Element {
                   <SegmentLineFrom />
                   <SegmentLineTo />
                   {/* Render visible series in reverse so legend[0] paints last = on top */}
-                  {[...displaySeries].filter(s => s.visible !== false).reverse().map((s) => (
+                  {[...visibleSeries].reverse().map((s) => (
                     <Area
                       key={s.id}
                       dataKey={s.code}
@@ -1173,9 +1293,9 @@ export function GraphTab(): JSX.Element {
                     />
                   ))}
                   {/* MA overlay lines — rendered above parent series */}
-                  {displaySeries.flatMap(s =>
+                  {visibleSeries.flatMap(s =>
                     (s.movingAverages ?? [])
-                      .filter(ma => ma.visible !== false && s.visible !== false)
+                      .filter(ma => ma.visible !== false)
                       .map(ma => (
                         <Area
                           key={ma.id}
@@ -1287,6 +1407,7 @@ export function GraphTab(): JSX.Element {
                           onPointerDown={(e) => e.stopPropagation()}
                           onClick={(e) => {
                             e.stopPropagation()
+                            setRightPanel(null)
                             setSelectedSeriesId(s.id)
                             setSelectedSeriesTab('calculations')
                           }}
@@ -1350,7 +1471,7 @@ export function GraphTab(): JSX.Element {
                 <li className="list-none">
                   <button
                   type="button"
-                  onClick={() => setRightPanel(rightPanel === 'addLine' ? null : 'addLine')}
+                  onClick={() => { setSelectedSeriesId(null); setRightPanel(rightPanel === 'addLine' ? null : 'addLine') }}
                   className="flex items-center gap-1.5 rounded-md border border-dashed px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-colors"
                 >
                   <Plus className="h-3.5 w-3.5" />
@@ -1359,27 +1480,6 @@ export function GraphTab(): JSX.Element {
                 </li>
               </ol>
 
-              {/* Series edit panel — below placement, left-aligned with the chart */}
-              <AnimatePresence>
-                {selectedSeries && panelMode === 'below' && (
-                  <SeriesEditPanel
-                    key={`below-${selectedSeries.id}`}
-                    series={selectedSeries}
-                    placement="below"
-                    activeTab={selectedSeriesTab}
-                    onTabChange={setSelectedSeriesTab}
-                    onClose={() => setSelectedSeriesId(null)}
-                    onUpdate={(patch) => updateSeries(selectedSeries.id, patch)}
-                  />
-                )}
-              </AnimatePresence>
-
-              {/* Add Series card — below placement */}
-              <AnimatePresence>
-                {rightPanel === 'addLine' && panelMode === 'below' && (
-                  <AddLinePanel key="addLine-below" placement="below" />
-                )}
-              </AnimatePresence>
             </div>
           )}
           {/* Left gutter — both cards use the same absolute slot; click-outside ensures mutual exclusion */}
@@ -1412,8 +1512,87 @@ export function GraphTab(): JSX.Element {
             )}
           </AnimatePresence>
         </div>
+
+        {/* Below-placement panels — outside chartWrap so they don't displace the
+            centered chart.  Horizontally centered, scrollable via the parent. */}
+        <AnimatePresence>
+          {selectedSeries && panelMode === 'below' && (
+            <div className="flex flex-col items-center -mt-16 pb-8" style={{ maxWidth: chartMaxWidth, marginInline: 'auto' }}>
+              <div className="w-full border-t border-border/30 mb-4" />
+              <SeriesEditPanel
+                key={`below-${selectedSeries.id}`}
+                series={selectedSeries}
+                placement="below"
+                activeTab={selectedSeriesTab}
+                onTabChange={setSelectedSeriesTab}
+                onClose={() => setSelectedSeriesId(null)}
+                onUpdate={(patch) => updateSeries(selectedSeries.id, patch)}
+              />
+            </div>
+          )}
+        </AnimatePresence>
+        <AnimatePresence>
+          {rightPanel === 'addLine' && panelMode === 'below' && (
+            <div className="flex flex-col items-center -mt-16 pb-8" style={{ maxWidth: chartMaxWidth, marginInline: 'auto' }}>
+              <div className="w-full border-t border-border/30 mb-4" />
+              <AddLinePanel key="addLine-below" placement="below" />
+            </div>
+          )}
+        </AnimatePresence>
       </div>
 
+      {/* Right-click context menu — portaled to document.body.
+           AnimatePresence lives INSIDE the portal so it can track the motion.div
+           in the same DOM subtree (wrapping a createPortal from outside breaks
+           mount/unmount detection). */}
+      {createPortal(
+        <AnimatePresence>
+          {rebaseMenu && (
+            <motion.div
+              key="rebase-menu"
+              ref={rebaseMenuRef}
+              initial={{ opacity: 0, y: -10, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -10, scale: 0.95 }}
+              transition={{ duration: 0.2, ease: 'easeOut' }}
+              style={{ position: 'fixed', left: rebaseMenu.x, top: rebaseMenu.y, zIndex: 600 }}
+              className="min-w-[11rem] overflow-hidden rounded-md bg-slate-100 dark:bg-zinc-900 border-2 border-slate-200 dark:border-zinc-800 shadow-lg"
+            >
+              <motion.div
+                initial="hidden"
+                animate="visible"
+                variants={{ visible: { transition: { staggerChildren: 0.03 } } }}
+              >
+                <motion.button
+                  type="button"
+                  onClick={handleCopyValues}
+                  variants={{ hidden: { opacity: 0, x: -20 }, visible: { opacity: 1, x: 0 } }}
+                  className={cn(
+                    'w-full px-4 py-2.5 text-left text-sm font-medium',
+                    'text-foreground hover:bg-slate-200 dark:hover:bg-zinc-800',
+                    'transition-colors',
+                  )}
+                >
+                  Copy Values
+                </motion.button>
+                <motion.button
+                  type="button"
+                  onClick={() => confirmRebase(rebaseMenu.date)}
+                  variants={{ hidden: { opacity: 0, x: -20 }, visible: { opacity: 1, x: 0 } }}
+                  className={cn(
+                    'w-full px-4 py-2.5 text-left text-sm font-medium',
+                    'text-foreground hover:bg-slate-200 dark:hover:bg-zinc-800',
+                    'transition-colors',
+                  )}
+                >
+                  Re-base Index
+                </motion.button>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>,
+        document.body,
+      )}
     </div>
   )
 }

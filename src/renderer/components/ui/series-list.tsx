@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import { ArrowUpDown, ArrowUp, ArrowDown, Plus, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -10,8 +10,25 @@ import { ipc } from '../../lib/ipc'
 import { getColor } from '../../lib/colors'
 import { isDarkTheme } from '../../lib/theme'
 import { useAppStore } from '../../store/app'
+import { useGraphStore } from '../../store/graph'
 import { AreaChart, Area } from './area-chart'
 import type { DBRecord, DataFreq, DataSeries } from '../../../shared/types'
+
+// ─── Graph tab icon (same SVG as sidebar) ────────────────────────────────────
+
+function MiniLineChartIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 32 32"
+      fill="currentColor"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+      aria-hidden="true"
+    >
+      <path stroke="currentColor" strokeWidth="1" strokeLinejoin="round" d="M13,15c1.4854,0,2.5544,1.4966,3.6863,3.0811C17.9983,19.918,19.4854,22,22,22c5.6709,0,7.78-10.79,8-12l-1.9678-.3584C27.55,12.2827,25.3938,20,22,20c-1.4854,0-2.5544-1.4966-3.6863-3.0811C17.0017,15.082,15.5146,13,13,13c-4.186,0-7.4448,7.4043-9,11.7617V2H2V28a2.0025,2.0025,0,0,0,2,2H30V28H5.0439C6.5544,22.8574,9.9634,15,13,15Z"/>
+    </svg>
+  )
+}
 
 // ─── Frequency badge ──────────────────────────────────────────────────────────
 
@@ -51,9 +68,10 @@ interface MiniChartProps {
   record: DBRecord
   dbPath: string | null
   dbId: string | null
+  className?: string
 }
 
-function MiniChart({ record, dbPath, dbId }: MiniChartProps) {
+export function MiniChart({ record, dbPath, dbId, className = 'h-10 w-28' }: MiniChartProps) {
   const [series, setSeries] = useState<DataSeries | null>(null)
   const colorPalette   = useAppStore((s) => s.colorPalette)
   const customPalettes = useAppStore((s) => s.customPalettes)
@@ -72,7 +90,7 @@ function MiniChart({ record, dbPath, dbId }: MiniChartProps) {
   }, [record.id, dbPath, dbId])
 
   if (!series || series.points.length === 0) {
-    return <div className="h-10 w-28" />
+    return <div className={className} />
   }
 
   const geomPts = toGeomIndex(series.points)
@@ -80,7 +98,7 @@ function MiniChart({ record, dbPath, dbId }: MiniChartProps) {
   const color = getColor(colorPalette, 0, customPalettes, isDark)
 
   return (
-    <div className="h-10 w-28">
+    <div className={className}>
       <AreaChart
         data={chartData}
         xDataKey="date"
@@ -165,6 +183,147 @@ const rowVariants = {
   visible: { opacity: 1, y: 0, transition: { type: 'spring' as const, stiffness: 120, damping: 16 } },
 }
 
+// ─── RowActions ───────────────────────────────────────────────────────────────
+
+interface RowActionsProps {
+  record: DBRecord
+  dbPath: string | null
+  dbId: string | null
+  onDelete: () => void
+}
+
+function RowActions({ record, dbPath, dbId, onDelete }: RowActionsProps) {
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [chartOpen, setChartOpen]         = useState(false)
+  const dropdownRef                        = useRef<HTMLDivElement>(null)
+
+  const colorPalette   = useAppStore((s) => s.colorPalette)
+  const customPalettes = useAppStore((s) => s.customPalettes)
+  const theme          = useAppStore((s) => s.theme)
+  const isDark         = isDarkTheme(theme)
+  const addSeries      = useGraphStore((s) => s.addSeries)
+  const activeCount    = useGraphStore((s) => s.activeSeries.length)
+
+  useEffect(() => {
+    if (!chartOpen) return
+    const handler = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setChartOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [chartOpen])
+
+  async function handleAddToChart() {
+    setChartOpen(false)
+    const fetcher = dbPath
+      ? ipc.external.getSeries(dbPath, record.id, dbId ?? record.id)
+      : ipc.memory.getSeries(record.id)
+    const series = await fetcher
+    if (!series) return
+    const color = getColor(colorPalette, activeCount, customPalettes, isDark)
+    addSeries({ ...series, color })
+  }
+
+  return (
+    <div className="flex items-center justify-center gap-3">
+      {/* Delete with inline confirm */}
+      <AnimatePresence mode="wait">
+        {confirmDelete ? (
+          <motion.div
+            key="confirm"
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            transition={{ duration: 0.1 }}
+            className="flex items-center gap-1"
+          >
+            <button
+              type="button"
+              onClick={() => setConfirmDelete(false)}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => { onDelete(); setConfirmDelete(false) }}
+              className="text-xs text-white bg-destructive hover:bg-destructive/90 transition-colors px-2 py-1 rounded"
+            >
+              Delete
+            </button>
+          </motion.div>
+        ) : (
+          <motion.button
+            key="delete-btn"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.1 }}
+            type="button"
+            onClick={() => { setConfirmDelete(true); setChartOpen(false) }}
+            className="inline-flex items-center text-muted-foreground/40 hover:text-destructive transition-colors"
+            aria-label={`Delete ${record.name}`}
+          >
+            <Trash2 className="h-4 w-4" />
+          </motion.button>
+        )}
+      </AnimatePresence>
+
+      {/* Chart dropdown */}
+      <div ref={dropdownRef} className="relative">
+        <button
+          type="button"
+          onClick={() => { setChartOpen((o) => !o); setConfirmDelete(false) }}
+          className="inline-flex items-center text-muted-foreground/40 hover:text-foreground transition-colors"
+          aria-label={`Add ${record.name} to chart`}
+        >
+          <MiniLineChartIcon className="h-3.5 w-3.5" />
+        </button>
+
+        <AnimatePresence>
+          {chartOpen && (
+            <motion.div
+              initial={{ opacity: 0, y: -8, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -8, scale: 0.95 }}
+              transition={{ duration: 0.15, ease: 'easeOut' }}
+              className={cn(
+                'absolute top-[calc(100%+0.35rem)] right-0 z-50',
+                'overflow-hidden rounded-md min-w-[130px]',
+                'bg-slate-100 dark:bg-zinc-900',
+                'border-2 border-slate-200 dark:border-zinc-800',
+                'shadow-lg',
+              )}
+            >
+              <motion.div
+                initial="hidden"
+                animate="visible"
+                variants={{ visible: { transition: { staggerChildren: 0.03 } } }}
+              >
+                <motion.button
+                  type="button"
+                  onClick={handleAddToChart}
+                  variants={{ hidden: { opacity: 0, x: -20 }, visible: { opacity: 1, x: 0 } }}
+                  className={cn(
+                    'w-full flex items-center gap-2 px-3 py-2 text-sm text-left whitespace-nowrap',
+                    'bg-slate-50 hover:bg-slate-200 dark:bg-zinc-900 dark:hover:bg-zinc-800',
+                    'transition-colors duration-150',
+                  )}
+                >
+                  <MiniLineChartIcon className="h-3.5 w-3.5 shrink-0" />
+                  Add to chart
+                </motion.button>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    </div>
+  )
+}
+
 // ─── SeriesList ───────────────────────────────────────────────────────────────
 
 export interface SeriesListProps {
@@ -178,9 +337,8 @@ export interface SeriesListProps {
 }
 
 export function SeriesList({ records, loading, error, dbPath, dbId, onDelete, onImportSeries }: SeriesListProps) {
-  const [sortKey, setSortKey]             = useState<SortKey | null>(null)
-  const [sortDir, setSortDir]             = useState<SortDir>('asc')
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const [sortKey, setSortKey] = useState<SortKey | null>(null)
+  const [sortDir, setSortDir] = useState<SortDir>('asc')
 
   function handleSort(key: SortKey) {
     if (sortKey === key) {
@@ -281,47 +439,12 @@ export function SeriesList({ records, loading, error, dbPath, dbId, onDelete, on
 
                   {/* Actions */}
                   <td className="p-4 text-center">
-                    <AnimatePresence mode="wait">
-                      {confirmDeleteId === r.id ? (
-                        <motion.div
-                          key="confirm"
-                          initial={{ opacity: 0, scale: 0.95 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          exit={{ opacity: 0, scale: 0.95 }}
-                          transition={{ duration: 0.1 }}
-                          className="flex items-center justify-center gap-2"
-                        >
-                          <button
-                            type="button"
-                            onClick={() => setConfirmDeleteId(null)}
-                            className="text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded"
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => { onDelete(r.id); setConfirmDeleteId(null) }}
-                            className="text-xs text-white bg-destructive hover:bg-destructive/90 transition-colors px-2 py-1 rounded"
-                          >
-                            Delete
-                          </button>
-                        </motion.div>
-                      ) : (
-                        <motion.button
-                          key="delete-btn"
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          exit={{ opacity: 0 }}
-                          transition={{ duration: 0.1 }}
-                          type="button"
-                          onClick={() => setConfirmDeleteId(r.id)}
-                          className="text-muted-foreground/40 hover:text-destructive transition-colors mx-auto"
-                          aria-label={`Delete ${r.name}`}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </motion.button>
-                      )}
-                    </AnimatePresence>
+                    <RowActions
+                      record={r}
+                      dbPath={dbPath}
+                      dbId={dbId}
+                      onDelete={() => onDelete(r.id)}
+                    />
                   </td>
                 </motion.tr>
               ))}

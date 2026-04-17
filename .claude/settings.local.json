@@ -14,7 +14,12 @@
       "Bash(ls -la *.jsonl)",
       "Bash(python:*)",
       "Bash(dd if=243e8b88-d696-4167-a954-e4c72fd10b8e.jsonl bs=1 skip=8410000 count=3000)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(grep -v \"^\\\\.$\")",
+      "Bash(grep -v \"^\\\\.\\\\.$\")",
+      "Bash(tasklist)",
+      "Bash(npm uninstall:*)",
+      "Bash(node -e \"const electron = require\\('electron'\\); console.log\\('ok'\\)\")"
     ]
   }
 }

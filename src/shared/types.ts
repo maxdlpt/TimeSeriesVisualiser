@@ -125,6 +125,7 @@ export interface GraphSession {
   cumMethod?: 'geometric' | 'arithmetic'
   cumBaseInput?: string
   showGrid?: boolean
+  graphTitle?: string
 }
 
 export interface AppSettings {

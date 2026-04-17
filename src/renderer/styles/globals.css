@@ -139,7 +139,7 @@ html, body, #root {
   --chart-foreground: oklch(0.45 0 0);
   --chart-foreground-muted: oklch(0.65 0.01 260);
   --chart-crosshair: oklch(0.72 0 0);
-  --chart-grid: oklch(0.25 0 0);
+  --chart-grid: oklch(0.33 0 0);
   --chart-label: oklch(0.88 0.01 260);
 }
 

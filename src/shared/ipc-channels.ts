@@ -25,5 +25,6 @@ export enum IPC {
   // File dialogs
   DIALOG_OPEN_DB          = 'dialog:open-db',
   DIALOG_SAVE_DB          = 'dialog:save-db',
-  DIALOG_EXPORT_SERIES    = 'dialog:export-series'
+  DIALOG_EXPORT_SERIES    = 'dialog:export-series',
+
 }

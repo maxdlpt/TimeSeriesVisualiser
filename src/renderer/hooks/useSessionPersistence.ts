@@ -19,6 +19,7 @@ export function useSessionPersistence(): void {
   const cumMethod     = useGraphStore((s) => s.cumMethod)
   const cumBaseInput  = useGraphStore((s) => s.cumBaseInput)
   const showGrid      = useGraphStore((s) => s.showGrid)
+  const graphTitle    = useGraphStore((s) => s.graphTitle)
   const timerRef      = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
@@ -35,6 +36,7 @@ export function useSessionPersistence(): void {
           cumMethod,
           cumBaseInput,
           showGrid,
+          graphTitle,
         })
         .catch(() => {})
     }, DEBOUNCE_MS)
@@ -42,5 +44,5 @@ export function useSessionPersistence(): void {
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current)
     }
-  }, [activeSeries, zoomDomain, chartMode, cumMethod, cumBaseInput, showGrid])
+  }, [activeSeries, zoomDomain, chartMode, cumMethod, cumBaseInput, showGrid, graphTitle])
 }

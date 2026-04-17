@@ -19,6 +19,7 @@ interface GraphState {
   cumMethod: CumMethod
   cumBaseInput: string
   showGrid: boolean
+  graphTitle: string
   addSeries: (s: DataSeries) => void
   removeSeries: (id: string) => void
   updateSeries: (id: string, patch: Partial<DataSeries>) => void
@@ -30,6 +31,7 @@ interface GraphState {
   setCumMethod: (method: CumMethod) => void
   setCumBaseInput: (input: string) => void
   setShowGrid: (show: boolean) => void
+  setGraphTitle: (title: string) => void
 }
 
 export const useGraphStore = create<GraphState>((set) => ({
@@ -40,6 +42,7 @@ export const useGraphStore = create<GraphState>((set) => ({
   cumMethod: 'geometric',
   cumBaseInput: '',
   showGrid: true,
+  graphTitle: 'New Graph',
   addSeries: (s) => set((state) => ({
     activeSeries: state.activeSeries.find(x => x.id === s.id)
       ? state.activeSeries
@@ -80,4 +83,5 @@ export const useGraphStore = create<GraphState>((set) => ({
   setCumMethod: (method) => set({ cumMethod: method }),
   setCumBaseInput: (input) => set({ cumBaseInput: input }),
   setShowGrid: (show) => set({ showGrid: show }),
+  setGraphTitle: (title) => set({ graphTitle: title }),
 }))

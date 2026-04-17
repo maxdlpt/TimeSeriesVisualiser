@@ -4,7 +4,7 @@ import { ParentSize } from '@visx/responsive'
 import { scaleLinear, scaleTime } from '@visx/scale'
 import { AreaClosed, LinePath } from '@visx/shape'
 import { bisector } from 'd3-array'
-import { animate, motion, useMotionValue, useSpring, useTransform } from 'motion/react'
+import { animate, type MotionValue, motion, useMotionValue, useSpring, useTransform } from 'motion/react'
 import {
   Children,
   createContext,
@@ -126,6 +126,7 @@ function useChartInteraction({
   onSelectionComplete,
   onPanDelta,
   onRightClickPoint,
+  freezeTooltip,
 }: {
   xScale: ScaleTime
   yScale: ScaleLinear
@@ -137,6 +138,7 @@ function useChartInteraction({
   onSelectionComplete?: (startDate: Date, endDate: Date) => void
   onPanDelta?: (timeDelta: number) => void
   onRightClickPoint?: (date: Date, clientX: number, clientY: number) => void
+  freezeTooltip?: boolean
 }) {
   const [tooltipData, setTooltipData] = useState<TooltipData | null>(null)
   const [selection, setSelection] = useState<ChartSelection | null>(null)
@@ -149,6 +151,9 @@ function useChartInteraction({
   // Store right-click screen coordinates at mousedown so the context-menu
   // callback can position itself even though handleMouseUp has no event ref.
   const rightClickClientRef = useRef<{ x: number; y: number } | null>(null)
+  // Synchronous freeze guard: set in handleContextMenu before React re-renders
+  // with the freezeTooltip prop.  Cleared when freezeTooltip goes false.
+  const rightClickFreezeRef = useRef(false)
   // Tracks the last known cursor position so we can re-resolve the tooltip
   // whenever xScale or data change (e.g. after a scroll-wheel zoom). Without
   // this, tooltipData.index holds a stale value from the pre-zoom dataset and
@@ -294,19 +299,14 @@ function useChartInteraction({
     edgeOverflowRef.current = null
     if (!isDraggingRef.current) return
     isDraggingRef.current = false
+
+    // Right-click context menu is handled by handleContextMenu (fires after
+    // mouseup).  This handler only processes drag-select zoom (distance > 5px).
     setSelection((cur) => {
       if (!cur?.active) return null
-      if (cur.endX - cur.startX <= 5) {
-        const date   = chartStateRef.current.xScale.invert(cur.anchorX)
-        const client = rightClickClientRef.current
-        if (client && onRightClickPointRef.current) onRightClickPointRef.current(date, client.x, client.y)
-        return null
-      }
+      if (cur.endX - cur.startX <= 5) return null   // click, not drag — contextmenu handles it
       if (onSelectionCompleteRef.current) {
         const sc = chartStateRef.current.xScale
-        // anchorDate is the exact Date of the anchor data point, immune to scale drift.
-        // Use it directly for whichever end of the selection is the anchor, and fall
-        // back to xScale.invert for the moving end.
         const startDate = (cur.anchorDate && cur.startX === cur.anchorX)
           ? cur.anchorDate
           : sc.invert(cur.startX)
@@ -319,8 +319,14 @@ function useChartInteraction({
     })
   }
 
+  const freezeTooltipRef = useRef(freezeTooltip)
+  freezeTooltipRef.current = freezeTooltip
+  // When the parent signals the menu is closed, also clear the synchronous guard.
+  if (!freezeTooltip) rightClickFreezeRef.current = false
+
   const handleMouseMove = useCallback(
     (event: React.MouseEvent<HTMLDivElement>) => {
+      if (freezeTooltipRef.current || rightClickFreezeRef.current) return
       const chartX = event.nativeEvent.offsetX
       if (isPanningRef.current) {
         // Keep cursor tracked so the crosshair follows during pan.
@@ -396,6 +402,7 @@ function useChartInteraction({
   }, [])
 
   const handleMouseLeave = useCallback(() => {
+    if (freezeTooltipRef.current || rightClickFreezeRef.current) return
     lastCursorXRef.current = null
     setTooltipData(null)
     // Don't cancel a right-click drag — document-level handlers take over and
@@ -442,6 +449,17 @@ function useChartInteraction({
 
   const handleContextMenu = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
     event.preventDefault()
+    // contextmenu fires reliably on every right-click release.  Compare with the
+    // mousedown position to distinguish a click (≤5 px) from a drag-select.
+    const down = rightClickClientRef.current
+    if (!down || !onRightClickPointRef.current) return
+    const dx = event.clientX - down.x
+    const dy = event.clientY - down.y
+    if (dx * dx + dy * dy > 25) return          // was a drag, not a click
+    const chartX = event.nativeEvent.offsetX
+    const date = chartStateRef.current.xScale.invert(chartX)
+    rightClickFreezeRef.current = true
+    onRightClickPointRef.current(date, event.clientX, event.clientY)
   }, [])
 
   const handleMouseUp = useCallback(() => {
@@ -816,7 +834,7 @@ function DateTicker({
 
 // ─── SeriesDot ────────────────────────────────────────────────────────────────
 // Spring-animated circle at the crosshair intersection for one series.
-// Each dot is its own component so it can legally own its own useSpring —
+// Each dot is its own component so it can legally own its own useMotionValue —
 // avoids calling hooks inside a loop in the parent.
 
 interface SeriesDotProps {
@@ -824,16 +842,15 @@ interface SeriesDotProps {
   stroke: string
   margin: Margin
   tooltipData: TooltipData | null
-  /** The spring-animated container-relative x position (shared from Crosshair). */
-  animatedX: ReturnType<typeof useSpring>
+  /** Container-relative x MotionValue (shared from Crosshair). */
+  animatedX: MotionValue<number>
   radius?: number
 }
 
 function SeriesDot({ dataKey, stroke, margin, tooltipData, animatedX, radius = 4 }: SeriesDotProps) {
-  const springCfg = { stiffness: 300, damping: 30 }
   const innerY = tooltipData?.yPositions[dataKey] ?? 0
   const containerY = innerY + margin.top
-  const animatedY = useSpring(containerY, springCfg)
+  const animatedY = useMotionValue(containerY)
 
   useEffect(() => {
     animatedY.set(containerY)
@@ -884,14 +901,18 @@ export function Crosshair({ color = 'var(--chart-crosshair)', opacity = 0.55, sk
   const visible = tooltipData !== null && showTooltip
   const innerX = tooltipData?.x ?? 0
 
+  // Instant motion values for the crosshair bar + dots — no lag.
+  const animatedInnerX = useMotionValue(innerX)
+  const animatedContainerX = useMotionValue(innerX + margin.left)
+  // Spring-animated value for the date label pill — smooth slide between points.
   const springCfg = { stiffness: 300, damping: 30 }
-  const animatedInnerX = useSpring(innerX, springCfg)
-  const animatedContainerX = useSpring(innerX + margin.left, springCfg)
+  const springContainerX = useSpring(innerX + margin.left, springCfg)
 
   useEffect(() => {
     animatedInnerX.set(innerX)
     animatedContainerX.set(innerX + margin.left)
-  }, [innerX, margin.left, animatedInnerX, animatedContainerX])
+    springContainerX.set(innerX + margin.left)
+  }, [innerX, margin.left, animatedInnerX, animatedContainerX, springContainerX])
 
   // ── Anchor crosshair + selection overlays (drag-select) ──────────────────
   const isSelecting = selection?.active === true
@@ -987,7 +1008,7 @@ export function Crosshair({ color = 'var(--chart-crosshair)', opacity = 0.55, sk
         <motion.div
           aria-hidden="true"
           className="pointer-events-none absolute z-50"
-          style={{ left: animatedContainerX, x: '-50%', bottom: 4 }}
+          style={{ left: springContainerX, x: '-50%', bottom: 4 }}
         >
           <DateTicker currentIndex={tooltipData?.index ?? 0} labels={dateLabels} visible={visible} skipAnimation={skipAnimation} />
         </motion.div>
@@ -1061,8 +1082,7 @@ export function ChartTooltip({ rows, formatValue, order }: ChartTooltipProps) {
   const innerX  = tooltipData?.x ?? 0
   const containerX = innerX + margin.left
 
-  const springCfg = { stiffness: 300, damping: 30 }
-  const animatedX = useSpring(containerX, springCfg)
+  const animatedX = useSpring(containerX, { stiffness: 300, damping: 30 })
   useEffect(() => { animatedX.set(containerX) }, [containerX, animatedX])
 
   // Sort lines by the caller-supplied order (legend order + MA grouping).
@@ -1086,13 +1106,11 @@ export function ChartTooltip({ rows, formatValue, order }: ChartTooltipProps) {
     <motion.div
       aria-hidden="true"
       className="pointer-events-none absolute z-50"
-      style={{
-        left: animatedX,
-        top: margin.top + 8,
-        x: showLeft ? 'calc(-100% - 16px)' : '16px',
-      }}
+      style={{ left: animatedX, top: margin.top + 8 }}
+      animate={{ x: showLeft ? 'calc(-100% - 16px)' : '16px' }}
+      transition={{ type: 'tween', duration: 0.2, ease: 'easeOut' }}
     >
-      <div className="rounded-lg border border-border bg-popover/90 backdrop-blur-sm px-3 py-2 shadow-lg min-w-[130px]">
+      <div className="rounded-lg border border-border bg-popover/5 backdrop-blur-xs px-3 py-2 shadow-lg w-max">
         {orderedLines.map(line => {
           const raw = tooltipData?.point[line.dataKey]
           const numValue = typeof raw === 'number' ? raw : null
@@ -1363,6 +1381,7 @@ interface ChartInnerProps {
   onSelectionComplete?: (startDate: Date, endDate: Date) => void
   onPanDelta?: (timeDelta: number) => void
   onRightClickPoint?: (date: Date, clientX: number, clientY: number) => void
+  freezeTooltip?: boolean
   showTooltip: boolean
 }
 
@@ -1378,6 +1397,7 @@ function ChartInner({
   onSelectionComplete,
   onPanDelta,
   onRightClickPoint,
+  freezeTooltip,
   showTooltip,
 }: ChartInnerProps) {
   const [isLoaded, setIsLoaded] = useState(false)
@@ -1462,6 +1482,7 @@ function ChartInner({
       onSelectionComplete,
       onPanDelta,
       onRightClickPoint,
+      freezeTooltip,
     })
 
   if (width < 10 || height < 10) return null
@@ -1542,6 +1563,7 @@ export interface AreaChartProps {
   onSelectionComplete?: (startDate: Date, endDate: Date) => void
   onPanDelta?: (timeDelta: number) => void
   onRightClickPoint?: (date: Date, clientX: number, clientY: number) => void
+  freezeTooltip?: boolean
   showTooltip?: boolean
 }
 
@@ -1556,6 +1578,7 @@ export function AreaChart({
   onSelectionComplete,
   onPanDelta,
   onRightClickPoint,
+  freezeTooltip,
   showTooltip = true,
 }: AreaChartProps) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -1578,6 +1601,7 @@ export function AreaChart({
             onSelectionComplete={onSelectionComplete}
             onPanDelta={onPanDelta}
             onRightClickPoint={onRightClickPoint}
+            freezeTooltip={freezeTooltip}
             showTooltip={showTooltip}
             width={width}
             xDataKey={xDataKey}
