@@ -37,11 +37,17 @@ export const useGraphStore = create<GraphState>((set) => ({
   showGrid: true,
   graphTitle: 'New Graph',
   savedFilename: null,
-  addSeries: (s) => set((state) => ({
-    activeSeries: state.activeSeries.find(x => x.id === s.id)
-      ? state.activeSeries
-      : [...state.activeSeries, s]
-  })),
+  addSeries: (s) => set((state) => {
+    if (state.activeSeries.find(x => x.id === s.id)) return {}
+    // Auto-select cumulative ("Index") mode for level series that haven't had
+    // a transform explicitly chosen yet (freshly uploaded or loaded from DB).
+    // Session-restored series carry their last transform in the JSON, so we
+    // must not override when transform is already set.
+    const entry = s.dataType === 'level' && s.transform == null
+      ? { ...s, transform: 'cumulative' as const }
+      : s
+    return { activeSeries: [...state.activeSeries, entry] }
+  }),
   removeSeries: (id) => set((state) => ({
     activeSeries: state.activeSeries.filter(s => s.id !== id)
   })),
