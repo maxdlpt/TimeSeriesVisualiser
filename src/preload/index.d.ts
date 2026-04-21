@@ -6,6 +6,7 @@ export interface TsvAPI {
     getSeries: (id: string) => Promise<RawSeries | null>
     saveSeries: (payload: RawSeries) => Promise<void>
     deleteSeries: (id: string) => Promise<void>
+    updateSeriesMeta: (id: string, patch: { dataType: 'level' | 'growth'; startingValue?: number }) => Promise<void>
   }
   external: {
     listSeries: (path: string) => Promise<DBRecord[]>
@@ -13,6 +14,7 @@ export interface TsvAPI {
     checkPath: (path: string) => Promise<boolean>
     saveSeries: (path: string, payload: RawSeries) => Promise<void>
     deleteSeries: (path: string, id: string) => Promise<void>
+    updateSeriesMeta: (path: string, id: string, patch: { dataType: 'level' | 'growth'; startingValue?: number }) => Promise<void>
   }
   settings: {
     get: () => Promise<AppSettings>

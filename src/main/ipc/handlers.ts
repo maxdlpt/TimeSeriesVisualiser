@@ -6,7 +6,12 @@ import { initSchema } from '../db/schema'
 import { MemoryDB } from '../db/memory'
 import { ExternalDBReader, checkPathReachable } from '../db/external'
 import { IPC } from '../../shared/ipc-channels'
-import type { AppSettings, GraphSession, RawSeries, SavedGraph, SavedGraphMeta } from '../../shared/types'
+import type { AppSettings, GraphSession, RawSeries, SavedGraph, SavedGraphMeta, DataType } from '../../shared/types'
+
+interface SeriesMetaPatch {
+  dataType: DataType
+  startingValue?: number
+}
 
 export function registerHandlers(): void {
   // Singleton internal memory DB. Initialised here (not at module import time)
@@ -80,6 +85,21 @@ export function registerHandlers(): void {
     const extMem = new MemoryDB(extDb)
     try {
       extMem.deleteSeries(id)
+    } finally {
+      extDb.close()
+    }
+  })
+
+  ipcMain.handle(IPC.MEMORY_UPDATE_SERIES_META, (_e, id: string, patch: SeriesMetaPatch) => {
+    memDB.updateSeriesMeta(id, patch)
+  })
+
+  ipcMain.handle(IPC.EXTERNAL_UPDATE_SERIES_META, (_e, filePath: string, id: string, patch: SeriesMetaPatch) => {
+    const extDb = new Database(filePath)
+    initSchema(extDb)
+    const extMem = new MemoryDB(extDb)
+    try {
+      extMem.updateSeriesMeta(id, patch)
     } finally {
       extDb.close()
     }

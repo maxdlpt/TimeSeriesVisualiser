@@ -8,6 +8,8 @@ contextBridge.exposeInMainWorld('tsv', {
     getSeries: (id: string) => ipcRenderer.invoke(IPC.MEMORY_GET_SERIES, id),
     saveSeries: (payload: RawSeries) => ipcRenderer.invoke(IPC.MEMORY_SAVE_SERIES, payload),
     deleteSeries: (id: string) => ipcRenderer.invoke(IPC.MEMORY_DELETE_SERIES, id),
+    updateSeriesMeta: (id: string, patch: { dataType: string; startingValue?: number }) =>
+      ipcRenderer.invoke(IPC.MEMORY_UPDATE_SERIES_META, id, patch),
   },
   external: {
     listSeries: (path: string) => ipcRenderer.invoke(IPC.EXTERNAL_LIST_SERIES, path),
@@ -18,6 +20,8 @@ contextBridge.exposeInMainWorld('tsv', {
       ipcRenderer.invoke(IPC.EXTERNAL_SAVE_SERIES, path, payload),
     deleteSeries: (path: string, id: string) =>
       ipcRenderer.invoke(IPC.EXTERNAL_DELETE_SERIES, path, id),
+    updateSeriesMeta: (path: string, id: string, patch: { dataType: string; startingValue?: number }) =>
+      ipcRenderer.invoke(IPC.EXTERNAL_UPDATE_SERIES_META, path, id, patch),
   },
   settings: {
     get: () => ipcRenderer.invoke(IPC.SETTINGS_GET),
