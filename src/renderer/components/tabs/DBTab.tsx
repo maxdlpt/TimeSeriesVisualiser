@@ -10,7 +10,7 @@ import { Tabs, TabsList, TabsTab, TabsPanel } from '../ui/tabs'
 import { SeriesList, MiniChart } from '../ui/series-list'
 import { DataTable } from '../ui/data-table'
 import { ipc } from '../../lib/ipc'
-import type { DBRecord, DataSeries, ExternalDB } from '../../../shared/types'
+import type { DBRecord, DataSeries, DataType, ExternalDB } from '../../../shared/types'
 
 type SelectedDB = 'memory' | string
 
@@ -1217,6 +1217,19 @@ export function DBTab() {
     }
   }, [dbPath])
 
+  const handleUpdateDataType = useCallback(async (id: string, dataType: DataType) => {
+    try {
+      if (dbPath) {
+        await ipc.external.updateSeriesMeta(dbPath, id, { dataType })
+      } else {
+        await ipc.memory.updateSeriesMeta(id, { dataType })
+      }
+      setRecords((prev) => prev.map((r) => r.id === id ? { ...r, dataType } : r))
+    } catch {
+      // Silently ignore — badge stays unchanged if update fails
+    }
+  }, [dbPath])
+
   return (
     <div className="flex flex-col h-full w-full p-8 gap-6">
       <TitleDropdown
@@ -1260,6 +1273,7 @@ export function DBTab() {
             dbPath={dbPath}
             dbId={dbId}
             onDelete={handleDelete}
+            onUpdateDataType={handleUpdateDataType}
             onImportSeries={() => setIsImportOpen(true)}
             onRowClick={(id) => { setDataSeriesFilter(id); setActiveInnerTab('data') }}
           />

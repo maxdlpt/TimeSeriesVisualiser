@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
-import { ArrowUpDown, ArrowUp, ArrowDown, Plus, Trash2 } from 'lucide-react'
+import { ArrowUpDown, ArrowUp, ArrowDown, Check, Plus, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { inferFreqFromRecord, formatFreq } from '../../lib/freq'
 import { toGeomIndex } from '../../lib/transforms'
@@ -12,7 +12,7 @@ import { isDarkTheme } from '../../lib/theme'
 import { useAppStore } from '../../store/app'
 import { useGraphStore } from '../../store/graph'
 import { AreaChart, Area } from './area-chart'
-import type { DBRecord, DataFreq, DataSeries } from '../../../shared/types'
+import type { DBRecord, DataFreq, DataSeries, DataType } from '../../../shared/types'
 
 // ─── Graph tab icon (same SVG as sidebar) ────────────────────────────────────
 
@@ -52,6 +52,72 @@ function FreqBadge({ record }: { record: DBRecord }) {
     <span className={cn('px-2.5 py-0.5 text-xs font-semibold rounded-full whitespace-nowrap', style)}>
       {label}
     </span>
+  )
+}
+
+// ─── Data type badge with inline popover ─────────────────────────────────────
+
+interface DataTypeBadgeProps {
+  record: DBRecord
+  onUpdate: (id: string, dataType: DataType) => void
+}
+
+function DataTypeBadge({ record, onUpdate }: DataTypeBadgeProps) {
+  const [open, setOpen] = useState(false)
+  const wrapRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  const current: DataType = record.dataType ?? 'growth'
+  const isLevel = current === 'level'
+
+  return (
+    <div ref={wrapRef} className="relative inline-block">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        title="Click to change data type"
+        className={cn(
+          'px-2.5 py-0.5 text-xs font-semibold rounded-full whitespace-nowrap transition-colors',
+          isLevel
+            ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-400 hover:bg-emerald-200 dark:hover:bg-emerald-900/60'
+            : 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-400 hover:bg-indigo-200 dark:hover:bg-indigo-900/60',
+        )}
+      >
+        {isLevel ? 'Level' : 'Returns'}
+      </button>
+
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.1 }}
+            className="absolute left-0 top-full mt-1 z-50 min-w-[7rem] rounded-lg overflow-hidden shadow-lg bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800"
+          >
+            {(['growth', 'level'] as const).map(type => (
+              <button
+                key={type}
+                type="button"
+                onClick={() => { onUpdate(record.id, type); setOpen(false) }}
+                className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors"
+              >
+                <span className="flex-1 capitalize">{type === 'growth' ? 'Returns' : 'Level'}</span>
+                {current === type && <Check className="h-3 w-3 shrink-0 opacity-50" />}
+              </button>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   )
 }
 
@@ -336,9 +402,10 @@ export interface SeriesListProps {
   onDelete: (id: string) => void
   onImportSeries: () => void
   onRowClick?: (id: string) => void
+  onUpdateDataType?: (id: string, dataType: DataType) => void
 }
 
-export function SeriesList({ records, loading, error, dbPath, dbId, onDelete, onImportSeries, onRowClick }: SeriesListProps) {
+export function SeriesList({ records, loading, error, dbPath, dbId, onDelete, onImportSeries, onRowClick, onUpdateDataType }: SeriesListProps) {
   const [sortKey, setSortKey] = useState<SortKey | null>(null)
   const [sortDir, setSortDir] = useState<SortDir>('asc')
 
@@ -379,6 +446,7 @@ export function SeriesList({ records, loading, error, dbPath, dbId, onDelete, on
               <th className="p-4 font-medium text-muted-foreground text-center">Chart</th>
               <SortableHeader label="Data Points" sortKey="pointCount" {...headerProps} className="text-center [&_button]:mx-auto" />
               <SortableHeader label="Frequency"   sortKey="freq"       {...headerProps} className="text-center [&_button]:mx-auto" />
+              <th className="p-4 font-medium text-muted-foreground text-center">Type</th>
               <SortableHeader label="Start Date"  sortKey="startDate"  {...headerProps} />
               <SortableHeader label="End Date"    sortKey="endDate"    {...headerProps} />
               <th className="p-4 font-medium text-muted-foreground text-center">
@@ -434,6 +502,23 @@ export function SeriesList({ records, loading, error, dbPath, dbId, onDelete, on
                   <td className="p-4 text-center">
                     <div className="flex justify-center">
                       <FreqBadge record={r} />
+                    </div>
+                  </td>
+
+                  {/* Data Type */}
+                  <td className="p-4 text-center" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex justify-center">
+                      {onUpdateDataType
+                        ? <DataTypeBadge record={r} onUpdate={onUpdateDataType} />
+                        : <span className={cn(
+                            'px-2.5 py-0.5 text-xs font-semibold rounded-full',
+                            (r.dataType ?? 'growth') === 'level'
+                              ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-400'
+                              : 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-400',
+                          )}>
+                            {(r.dataType ?? 'growth') === 'level' ? 'Level' : 'Returns'}
+                          </span>
+                      }
                     </div>
                   </td>
 
