@@ -670,7 +670,7 @@ export function SeriesEditPanel({ series, placement, activeTab, onTabChange, onC
             <div className="flex gap-2">
               {([
                 { value: 'returns' as const, label: 'Raw Returns' },
-                { value: 'cumulative' as const, label: 'Cumulative' },
+                { value: 'cumulative' as const, label: 'Index' },
                 { value: 'drawdown' as const, label: 'Drawdowns' },
               ]).map(opt => (
                 <button
