@@ -70,13 +70,13 @@ beforeEach(() => {
 
 describe('AddLinePanel', () => {
   it('renders Add Line heading and close button', async () => {
-    render(<AddLinePanel />)
+    render(<AddLinePanel placement="left" />)
     expect(screen.getByText(/add line/i)).toBeInTheDocument()
     expect(screen.getByLabelText(/close add line panel/i)).toBeInTheDocument()
   })
 
   it('lists memory-DB series on mount', async () => {
-    render(<AddLinePanel />)
+    render(<AddLinePanel placement="left" />)
     await waitFor(() => {
       expect(screen.getByText('US CPI')).toBeInTheDocument()
       expect(screen.getByText('US GDP')).toBeInTheDocument()
@@ -85,7 +85,7 @@ describe('AddLinePanel', () => {
 
   it('filters the list by search input', async () => {
     const user = userEvent.setup()
-    render(<AddLinePanel />)
+    render(<AddLinePanel placement="left" />)
     await waitFor(() => expect(screen.getByText('US CPI')).toBeInTheDocument())
 
     await user.type(screen.getByPlaceholderText(/search/i), 'GDP')
@@ -95,7 +95,7 @@ describe('AddLinePanel', () => {
 
   it('clicking a series adds it to activeSeries via ipc.memory.getSeries', async () => {
     const user = userEvent.setup()
-    render(<AddLinePanel />)
+    render(<AddLinePanel placement="left" />)
     await waitFor(() => expect(screen.getByText('US CPI')).toBeInTheDocument())
 
     await user.click(screen.getByText('US CPI'))
@@ -116,7 +116,7 @@ describe('AddLinePanel', () => {
       externalDBs: [{ id: 'db-1', name: 'Macro', path: '/tmp/macro.db', reachable: true }],
     })
     const user = userEvent.setup()
-    render(<AddLinePanel />)
+    render(<AddLinePanel placement="left" />)
     await waitFor(() => expect(screen.getByText('US CPI')).toBeInTheDocument())
 
     await user.click(screen.getByRole('button', { name: /macro/i }))
@@ -135,21 +135,21 @@ describe('AddLinePanel', () => {
         { id: 'db-down', name: 'DownDB', path: '/tmp/down.db', reachable: false },
       ],
     })
-    render(<AddLinePanel />)
+    render(<AddLinePanel placement="left" />)
     expect(screen.getByRole('button', { name: /updb/i })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /downdb/i })).not.toBeInTheDocument()
   })
 
   it('close button clears rightPanel in store', async () => {
     const user = userEvent.setup()
-    render(<AddLinePanel />)
+    render(<AddLinePanel placement="left" />)
     await user.click(screen.getByLabelText(/close add line panel/i))
     expect(useGraphStore.getState().rightPanel).toBeNull()
   })
 
   it('does not re-add a series that is already on the chart', async () => {
     const user = userEvent.setup()
-    render(<AddLinePanel />)
+    render(<AddLinePanel placement="left" />)
     await waitFor(() => expect(screen.getByText('US CPI')).toBeInTheDocument())
 
     // Click twice rapidly.
