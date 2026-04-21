@@ -1,6 +1,7 @@
-import { app, BrowserWindow } from 'electron'
+import { app, BrowserWindow, dialog } from 'electron'
 import { join } from 'path'
 import { electronApp, is } from '@electron-toolkit/utils'
+import { autoUpdater } from 'electron-updater'
 import { registerHandlers } from './ipc/handlers'
 
 function createWindow(): void {
@@ -27,11 +28,43 @@ function createWindow(): void {
   }
 }
 
+function setupAutoUpdater(): void {
+  // Never run update checks in dev — the app is not packaged so there is
+  // nothing to update, and electron-updater errors on unsigned builds.
+  if (is.dev) return
+
+  autoUpdater.autoDownload = true         // download silently in background
+  autoUpdater.autoInstallOnAppQuit = true // install automatically when user quits
+
+  autoUpdater.on('update-downloaded', () => {
+    dialog.showMessageBox({
+      type: 'info',
+      title: 'Update ready',
+      message: 'A new version has been downloaded. Restart now to apply the update?',
+      buttons: ['Restart now', 'Later'],
+      defaultId: 0,
+      cancelId: 1,
+    }).then(({ response }) => {
+      if (response === 0) autoUpdater.quitAndInstall()
+    })
+  })
+
+  autoUpdater.on('error', (err) => {
+    // Log silently — update failures must never crash or block the app.
+    console.error('[updater]', err.message)
+  })
+
+  // Check once on launch, then every 4 hours while the app is running.
+  autoUpdater.checkForUpdates()
+  setInterval(() => autoUpdater.checkForUpdates(), 4 * 60 * 60 * 1000)
+}
+
 app.whenReady().then(() => {
   electronApp.setAppUserModelId('com.tsv.app')
 
   registerHandlers()
   createWindow()
+  setupAutoUpdater()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
