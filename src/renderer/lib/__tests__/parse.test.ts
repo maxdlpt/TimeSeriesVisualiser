@@ -1,14 +1,26 @@
 import { describe, it, expect } from 'vitest'
-import { parseCSVText } from '../parse'
+import { parseCSVText, detectDataType, toGrowthRates } from '../parse'
 
 describe('parseCSVText', () => {
-  it('parses simple date,value CSV', () => {
+  it('parses simple date,value CSV with growth data (small magnitudes)', () => {
+    // Values like 2.5 / 3.1 are returns (medianAbs ≤ 20) → no conversion
+    const csv = `date,return\n2020-01-01,2.5\n2020-02-01,3.1`
+    const series = parseCSVText(csv)
+    expect(series).toHaveLength(1)
+    expect(series[0].name).toBe('return')
+    expect(series[0].points).toHaveLength(2)
+    expect(series[0].points[0].value).toBeCloseTo(2.5)
+  })
+
+  it('converts level data (large positive magnitudes) to growth rates', () => {
+    // Values of 100/110 → detected as level → first point becomes 0 sentinel
     const csv = `date,price\n2020-01-01,100\n2020-02-01,110`
     const series = parseCSVText(csv)
     expect(series).toHaveLength(1)
-    expect(series[0].name).toBe('price')
-    expect(series[0].points).toHaveLength(2)
-    expect(series[0].points[0].value).toBe(100)
+    expect(series[0].dataType).toBe('level')
+    expect(series[0].startingValue).toBe(100)
+    expect(series[0].points[0].value).toBe(0)        // sentinel
+    expect(series[0].points[1].value).toBeCloseTo(10) // +10%
   })
 
   it('parses multi-series CSV', () => {
@@ -43,5 +55,85 @@ describe('parseCSVText', () => {
     expect(series).toHaveLength(1)
     expect(series[0].name).toBe('price')
     expect(series[0].points).toHaveLength(2)
+  })
+})
+
+// Helper: build DataPoint array with a fixed date (value is what we're testing)
+function pts(values: number[]) {
+  const d = new Date('2020-01-01')
+  return values.map(value => ({ date: d, value }))
+}
+
+describe('detectDataType', () => {
+  it('returns growth for empty array', () => {
+    expect(detectDataType([])).toBe('growth')
+  })
+
+  it('returns growth when negFrac > 0.15', () => {
+    // 4 negative out of 20 = 0.2 → growth
+    const values = [...Array(16).fill(50), ...Array(4).fill(-1)]
+    expect(detectDataType(pts(values))).toBe('growth')
+  })
+
+  it('returns level when nearly all positive and medianAbs > 20', () => {
+    // 0 negative, median = 100 → level
+    expect(detectDataType(pts([80, 90, 100, 110, 120]))).toBe('level')
+  })
+
+  it('returns growth when medianAbs ≤ 20 even with no negatives', () => {
+    // medianAbs = 5 (small returns like 5.0%) → growth
+    expect(detectDataType(pts([3, 4, 5, 6, 7]))).toBe('growth')
+  })
+
+  it('returns growth at the exact medianAbs = 20 boundary (not strictly greater)', () => {
+    // Exactly 20 does NOT satisfy > 20 → growth
+    expect(detectDataType(pts([20, 20, 20]))).toBe('growth')
+  })
+
+  it('returns growth when negFrac is between 0.05 and 0.15 regardless of magnitude', () => {
+    // 1 negative out of 10 = 0.10, not > 0.15 but not < 0.05 → growth fallback
+    const values = [...Array(9).fill(100), -1]
+    expect(detectDataType(pts(values))).toBe('growth')
+  })
+})
+
+describe('toGrowthRates', () => {
+  it('first growth point is 0 sentinel with original date', () => {
+    const d0 = new Date('2020-01-01')
+    const d1 = new Date('2020-02-01')
+    const input = [{ date: d0, value: 100 }, { date: d1, value: 110 }]
+    const { growthPoints } = toGrowthRates(input)
+    expect(growthPoints[0].value).toBe(0)
+    expect(growthPoints[0].date).toBe(d0)
+  })
+
+  it('captures startingValue from first input point', () => {
+    const input = pts([250, 260, 270])
+    const { startingValue } = toGrowthRates(input)
+    expect(startingValue).toBe(250)
+  })
+
+  it('computes percentage growth rates correctly', () => {
+    // 100 → 110 → 121: each step is +10%
+    const d = [new Date('2020-01-01'), new Date('2020-02-01'), new Date('2020-03-01')]
+    const input = [{ date: d[0], value: 100 }, { date: d[1], value: 110 }, { date: d[2], value: 121 }]
+    const { growthPoints } = toGrowthRates(input)
+    expect(growthPoints).toHaveLength(3)
+    expect(growthPoints[1].value).toBeCloseTo(10, 10)
+    expect(growthPoints[2].value).toBeCloseTo(10, 10)
+  })
+
+  it('handles negative prior value with Math.abs denominator', () => {
+    // -100 → -80: change = +20 over |−100| = 20% recovery
+    const d = [new Date('2020-01-01'), new Date('2020-02-01')]
+    const input = [{ date: d[0], value: -100 }, { date: d[1], value: -80 }]
+    const { growthPoints } = toGrowthRates(input)
+    expect(growthPoints[1].value).toBeCloseTo(20, 10)
+  })
+
+  it('output has same length as input', () => {
+    const input = pts([10, 20, 30, 40, 50])
+    const { growthPoints } = toGrowthRates(input)
+    expect(growthPoints).toHaveLength(input.length)
   })
 })
