@@ -1,6 +1,6 @@
 import Papa from 'papaparse'
 import * as XLSX from 'xlsx'
-import type { DataSeries } from '../../shared/types'
+import type { DataSeries, DataPoint, DataType } from '../../shared/types'
 import { detectFrequency, snapToFrequency } from './freq'
 
 function makeId(): string {
@@ -106,6 +106,45 @@ function parseDateColumn(values: string[]): Date[] {
   return spanMs(dmyDates) >= spanMs(mdyDates) ? dmyDates : mdyDates
 }
 
+// ─── Data type detection & conversion ────────────────────────────────────────
+
+/**
+ * Heuristic that classifies uploaded values as Level (prices/indices) or Growth (returns).
+ *
+ * negFrac > 0.15               → 'growth'  (returns frequently change sign)
+ * negFrac < 0.05 AND medAbs > 20 → 'level'  (nearly all positive, price magnitude)
+ * otherwise                    → 'growth'  (safe default)
+ */
+export function detectDataType(points: DataPoint[]): DataType {
+  const N = points.length
+  if (N === 0) return 'growth'
+  const negFrac = points.filter(p => p.value < 0).length / N
+  if (negFrac > 0.15) return 'growth'
+  const absVals = points.map(p => Math.abs(p.value)).sort((a, b) => a - b)
+  const medianAbs = absVals[Math.floor((N - 1) / 2)]
+  if (negFrac < 0.05 && medianAbs > 20) return 'level'
+  return 'growth'
+}
+
+/**
+ * Converts N level data points into N growth rate points.
+ *
+ * growthPoints[0]  = { date: d₀, value: 0 }                (sentinel — no prior period)
+ * growthPoints[i]  = { date: dᵢ, value: (valᵢ − valᵢ₋₁) / |valᵢ₋₁| × 100 }
+ * startingValue    = points[0].value                         (original first price)
+ */
+export function toGrowthRates(points: DataPoint[]): { growthPoints: DataPoint[]; startingValue: number } {
+  const startingValue = points[0].value
+  const growthPoints: DataPoint[] = [
+    { date: points[0].date, value: 0 },
+    ...points.slice(1).map((p, i) => ({
+      date: p.date,
+      value: ((p.value - points[i].value) / Math.abs(points[i].value)) * 100,
+    })),
+  ]
+  return { growthPoints, startingValue }
+}
+
 // NOTE: within-file column-name collisions are disambiguated here at parse time
 // using a `_2`, `_3`, ... suffix on `code` (display `name` keeps the original
 // label so the UI still shows e.g. "Price"). Papa-parse renames duplicate
@@ -147,17 +186,28 @@ export function parseCSVText(csvText: string): DataSeries[] {
   })
 
   return valueHeaders.map((col, i) => {
-    const points = rows
+    const rawPoints = rows
       .map((row, rowIdx) => ({
         date: parsedDates[rowIdx],
         value: parseFloat(row[col]),
       }))
       .filter((p) => !isNaN(p.date.getTime()) && !isNaN(p.value))
-    const freq = detectFrequency(points)
+    const freq = detectFrequency(rawPoints)
     // Snap dates to canonical period-end (e.g. Apr 29 → Apr 30 for monthly)
     if (freq !== 'daily') {
-      for (const p of points) p.date = snapToFrequency(p.date, freq)
+      for (const p of rawPoints) p.date = snapToFrequency(p.date, freq)
     }
+
+    const detectedType = detectDataType(rawPoints)
+    let points = rawPoints
+    let startingValue: number | undefined
+
+    if (detectedType === 'level' && rawPoints.length > 0) {
+      const converted = toGrowthRates(rawPoints)
+      points = converted.growthPoints
+      startingValue = converted.startingValue
+    }
+
     return {
       id: makeId(),
       // Keep the user's original label for display, even if it's a duplicate.
@@ -166,6 +216,8 @@ export function parseCSVText(csvText: string): DataSeries[] {
       description: '',
       data_freq: freq,
       source: 'memory' as const,
+      dataType: detectedType,
+      startingValue,
       points,
       // Snapshot copy: 'Reset to Raw' must restore these exactly even after
       // an in-place mutation of `points`.
