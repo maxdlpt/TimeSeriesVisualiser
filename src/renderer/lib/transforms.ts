@@ -40,6 +40,46 @@ export function toDrawdown(pts: DataPoint[]): DataPoint[] {
   })
 }
 
+/**
+ * Inverse of toGrowthRates: reconstruct absolute price levels from stored
+ * growth-rate points and the original first price (startingValue).
+ *
+ * points[0] is the 0-sentinel → value₀ = startingValue
+ * points[i] carries a % return  → valueᵢ = (1 + gᵢ/100) × valueᵢ₋₁
+ */
+export function reconstructLevels(pts: DataPoint[], startingValue: number): DataPoint[] {
+  if (pts.length === 0) return []
+  let level = startingValue
+  return pts.map((p, i) => {
+    if (i > 0) level = level * (1 + p.value / 100)
+    return { date: p.date, value: level }
+  })
+}
+
+/**
+ * Normalise a level series to 100 at the given base date.
+ * The base date is snapped to the nearest point (the closest timestamp wins).
+ * If baseDate is null/undefined, normalises to the first point.
+ *
+ * Used by GraphTab's applyLevelIndex when multiple Level series are active:
+ * all series are pinned to 100 at their earliest common date (or cumBaseInput).
+ */
+export function toLevelIndex(pts: DataPoint[], baseDate?: Date | null): DataPoint[] {
+  if (pts.length === 0) return []
+  let baseIdx = 0
+  if (baseDate != null) {
+    const targetMs = baseDate.getTime()
+    let minDiff = Infinity
+    for (let i = 0; i < pts.length; i++) {
+      const diff = Math.abs(pts[i].date.getTime() - targetMs)
+      if (diff < minDiff) { minDiff = diff; baseIdx = i }
+    }
+  }
+  const base = pts[baseIdx].value
+  if (base === 0) return pts.map(p => ({ date: p.date, value: 0 }))
+  return pts.map(p => ({ date: p.date, value: (p.value / base) * 100 }))
+}
+
 export function toPctChange(pts: DataPoint[]): DataPoint[] {
   return pts.map((p, i) => {
     if (i === 0) return { date: p.date, value: 0 }
