@@ -98,7 +98,7 @@ function DestSelector({ value, onChange, dbs }: DestSelectorProps) {
       <button
         type="button"
         onClick={() => setOpen(o => !o)}
-        className="flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 text-foreground transition-colors"
+        className="flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium bg-muted hover:bg-accent text-foreground transition-colors"
       >
         <DestIcon dest={value} className="h-3 w-3 shrink-0" />
         <span>{destLabel(value, dbs)}</span>
@@ -112,14 +112,14 @@ function DestSelector({ value, onChange, dbs }: DestSelectorProps) {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -4 }}
             transition={{ duration: 0.1 }}
-            className="absolute right-0 top-full mt-1 z-50 min-w-[9rem] rounded-lg overflow-hidden shadow-lg bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800"
+            className="absolute right-0 top-full mt-1 z-50 min-w-[9rem] rounded-lg overflow-hidden shadow-lg bg-card border border-border"
           >
             {options.map((opt, i) => (
               <button
                 key={i}
                 type="button"
                 onClick={() => { onChange(opt); setOpen(false) }}
-                className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors"
+                className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-accent transition-colors"
               >
                 <DestIcon dest={opt} className="h-3 w-3 shrink-0 opacity-60" />
                 <span className="flex-1">{destLabel(opt, dbs)}</span>
@@ -210,7 +210,7 @@ export const SeriesReviewPanel = forwardRef<SeriesReviewHandle, Props>(
                   disabled={hasError || dest.type === 'skip'}
                   title="Add this series"
                   onClick={() => onAddSingle({ series: { ...s, ...draft }, destination: dest })}
-                  className="flex items-center justify-center h-[26px] w-[26px] rounded bg-blue-500 hover:bg-blue-600 text-white transition-colors disabled:opacity-35 disabled:cursor-not-allowed shrink-0"
+                  className="flex items-center justify-center h-[26px] w-[26px] rounded bg-primary hover:bg-primary/90 text-primary-foreground transition-colors disabled:opacity-35 disabled:cursor-not-allowed shrink-0"
                 >
                   <Check className="h-3 w-3" />
                 </button>

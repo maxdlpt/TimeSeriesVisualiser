@@ -748,40 +748,47 @@ YAxis.displayName = 'YAxis'
 export interface YAxisRightProps {
   numTicks?: number
   /**
-   * Y value that must always have a label — 0 for returns, 0 for drawdown.
-   * Must match the `origin` passed to the scale so it's always rendered.
+   * Origin value for the LEFT axis — used to generate the same grid-line
+   * positions that Grid and YAxis use, so right labels land on those lines.
    */
-  origin?: number
+  leftOrigin?: number
   formatValue?: (value: number) => string
 }
 
-export function YAxisRight({ numTicks = 4, origin = 0, formatValue }: YAxisRightProps) {
-  const { yScaleRight, margin, innerWidth, containerRef } = useChart()
+export function YAxisRight({ numTicks = 4, leftOrigin = 0, formatValue }: YAxisRightProps) {
+  const { yScale, yScaleRight, margin, innerWidth, containerRef } = useChart()
   const [container, setContainer] = useState<HTMLDivElement | null>(null)
   useEffect(() => { setContainer(containerRef.current) }, [containerRef])
 
   const ticks = useMemo(() => {
     if (!yScaleRight) return []
-    const domain = yScaleRight.domain() as [number, number]
-    return originAlignedYTicks(domain, origin, numTicks).map((value) => {
-      const label = formatValue
-        ? formatValue(value)
-        : value >= 1_000_000
-          ? `${(value / 1_000_000).toFixed(1)}M`
-          : value >= 1_000
-            ? `${(value / 1_000).toFixed(value % 1_000 === 0 ? 0 : 1)}k`
-            : value.toLocaleString()
-      return { value, y: (yScaleRight(value) ?? 0) + margin.top, label }
-    })
-  }, [yScaleRight, margin.top, numTicks, origin, formatValue])
+
+    // Compute the same left-axis tick values that Grid and YAxis use.
+    const leftTicks = originAlignedYTicks(yScale.domain() as [number, number], leftOrigin, numTicks)
+    const [rightRangeMin, rightRangeMax] = [
+      Math.min(...(yScaleRight.range() as number[])),
+      Math.max(...(yScaleRight.range() as number[])),
+    ]
+
+    return leftTicks
+      .map(leftVal => {
+        const yInner = yScale(leftVal) ?? 0           // inner-chart y for this grid line
+        // Only show labels within the right scale's rendered pixel range
+        if (yInner < rightRangeMin - 1 || yInner > rightRangeMax + 1) return null
+        const rightVal = yScaleRight.invert(yInner)
+        const label = formatValue ? formatValue(rightVal) : rightVal.toLocaleString()
+        return { label, y: yInner + margin.top }
+      })
+      .filter((t): t is { label: string; y: number } => t !== null)
+  }, [yScale, yScaleRight, margin.top, numTicks, leftOrigin, formatValue])
 
   if (!container || !yScaleRight) return null
 
   return createPortal(
     <div className="pointer-events-none absolute inset-0">
-      {ticks.map((tick) => (
+      {ticks.map((tick, i) => (
         <div
-          key={tick.value}
+          key={i}
           className="absolute flex justify-start"
           style={{ left: margin.left + innerWidth + 8, top: tick.y, transform: 'translateY(-50%)' }}
         >
@@ -864,7 +871,7 @@ function DateTicker({
   const hasYear = parts.some((p) => p.year !== '')
 
   return (
-    <div className="overflow-hidden rounded-full bg-zinc-900 px-3 py-1 text-white shadow-lg dark:bg-zinc-100 dark:text-zinc-900">
+    <div className="overflow-hidden rounded-full bg-popover px-3 py-1 text-popover-foreground shadow-lg">
       <div className="flex h-6 items-center gap-1">
         {/* Month column — one slot per data point, scrolls every hover step */}
         <div className="relative h-6 overflow-hidden">
@@ -1122,6 +1129,12 @@ export interface ChartTooltipProps {
    * When omitted a default "swatch + dataKey + value" row is used.
    */
   rows?: (dataKey: string, color: string, value: number | null) => ReactNode
+  /**
+   * Full-content renderer. When provided, replaces the per-row `rows` callback
+   * and the default mapping entirely. Receives all ordered lines with their
+   * resolved values — use this when you need to interleave group headers.
+   */
+  renderRows?: (lines: Array<{ dataKey: string; color: string; value: number | null }>) => ReactNode
   /** Value formatter. Defaults to two decimal places. */
   formatValue?: (value: number | null) => string
   /**
@@ -1134,7 +1147,7 @@ export interface ChartTooltipProps {
   anchor?: 'top' | 'bottom'
 }
 
-export function ChartTooltip({ rows, formatValue, order, anchor = 'top' }: ChartTooltipProps) {
+export function ChartTooltip({ rows, renderRows, formatValue, order, anchor = 'top' }: ChartTooltipProps) {
   const { tooltipData, lines, margin, innerWidth, containerRef, showTooltip } = useChart()
   const [container, setContainer] = useState<HTMLDivElement | null>(null)
 
@@ -1179,22 +1192,29 @@ export function ChartTooltip({ rows, formatValue, order, anchor = 'top' }: Chart
       transition={{ type: 'tween', duration: 0.2, ease: 'easeOut' }}
     >
       <div className="rounded-lg border border-border bg-popover/5 backdrop-blur-xs px-3 py-2 shadow-lg w-max">
-        {orderedLines.map(line => {
-          const raw = tooltipData?.point[line.dataKey]
-          const numValue = typeof raw === 'number' ? raw : null
-          if (rows) {
-            const node = rows(line.dataKey, line.stroke, numValue)
-            if (node == null) return null
-            return <div key={line.dataKey}>{node}</div>
-          }
-          return (
-            <div key={line.dataKey} className="flex items-center gap-2 py-0.5">
-              <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: line.stroke }} />
-              <span className="flex-1 truncate text-xs text-popover-foreground/60">{line.dataKey}</span>
-              <span className="tabular-nums text-xs font-medium text-popover-foreground">{fmt(numValue)}</span>
-            </div>
-          )
-        })}
+        {renderRows
+          ? renderRows(orderedLines.map(line => ({
+              dataKey: line.dataKey,
+              color: line.stroke,
+              value: (() => { const raw = tooltipData?.point[line.dataKey]; return typeof raw === 'number' ? raw : null })(),
+            })))
+          : orderedLines.map(line => {
+              const raw = tooltipData?.point[line.dataKey]
+              const numValue = typeof raw === 'number' ? raw : null
+              if (rows) {
+                const node = rows(line.dataKey, line.stroke, numValue)
+                if (node == null) return null
+                return <div key={line.dataKey}>{node}</div>
+              }
+              return (
+                <div key={line.dataKey} className="flex items-center gap-2 py-0.5">
+                  <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: line.stroke }} />
+                  <span className="flex-1 truncate text-xs text-popover-foreground/60">{line.dataKey}</span>
+                  <span className="tabular-nums text-xs font-medium text-popover-foreground">{fmt(numValue)}</span>
+                </div>
+              )
+            })
+        }
       </div>
     </motion.div>,
     container,
@@ -1216,6 +1236,14 @@ export interface AreaProps {
   animate?: boolean
   /** Which Y-axis this line should be plotted against. Defaults to 'left'. */
   yAxis?: 'left' | 'right'
+  /**
+   * Where the filled area closes to.
+   * 'bottom' (default) — closes at the low end of the scale range (normal charts).
+   * 'top'              — closes at the high end of the scale range, i.e. fills
+   *                      downward from the origin line. Use for drawdown areas
+   *                      where origin (0%) is at the top and values go negative.
+   */
+  fillBaseline?: 'bottom' | 'top'
 }
 
 export function Area({
@@ -1228,6 +1256,7 @@ export function Area({
   curve = curveMonotoneX,
   animate = true,
   yAxis = 'left',
+  fillBaseline = 'bottom',
 }: AreaProps) {
   const {
     data,
@@ -1280,7 +1309,11 @@ export function Area({
     <>
       {fillOpacity > 0 && (
         <defs>
-          <linearGradient id={gradientId} x1="0%" x2="0%" y1="0%" y2="100%">
+          {/* Gradient direction: normal = top→bottom fade; top-baseline = bottom→top fade */}
+          <linearGradient id={gradientId} x1="0%" x2="0%"
+            y1={fillBaseline === 'top' ? '100%' : '0%'}
+            y2={fillBaseline === 'top' ? '0%'   : '100%'}
+          >
             <stop offset="0%" style={{ stopColor: fill, stopOpacity: fillOpacity }} />
             <stop offset="100%" style={{ stopColor: fill, stopOpacity: 0 }} />
           </linearGradient>
@@ -1318,6 +1351,7 @@ export function Area({
             fill={`url(#${gradientId})`}
             x={(d) => xScale(xAccessor(d)) ?? 0}
             y={getY}
+            y0={fillBaseline === 'top' ? () => activeYScale.range()[1] as number : undefined}
             yScale={activeYScale}
           />
         )}

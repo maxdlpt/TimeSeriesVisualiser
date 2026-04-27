@@ -59,9 +59,9 @@ export function PasteTable({ onSeries }: Props) {
         onPaste={handlePaste}
         className={[
           'flex flex-col items-center justify-center min-h-48 rounded-lg',
-          'border-2 border-dashed border-gray-300 dark:border-gray-700',
-          'text-gray-400 dark:text-gray-500 text-sm cursor-text',
-          'focus:outline-none focus:border-blue-400 dark:focus:border-blue-500 transition-colors',
+          'border-2 border-dashed border-border',
+          'text-muted-foreground text-sm cursor-text',
+          'focus:outline-none focus:border-primary transition-colors',
         ].join(' ')}
       >
         <p className="font-medium">Click here, then paste your data</p>
@@ -74,26 +74,26 @@ export function PasteTable({ onSeries }: Props) {
     <div className="flex flex-col gap-2">
       <div
         onPaste={handlePaste}
-        className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-800"
+        className="overflow-x-auto rounded-lg border border-border"
       >
         <table className="min-w-full text-sm border-collapse">
           <tbody>
             {grid.map((row, ri) => (
               <tr
                 key={ri}
-                className={ri === 0 ? 'bg-gray-50 dark:bg-gray-900' : ''}
+                className={ri === 0 ? 'bg-muted' : ''}
               >
                 {row.map((cell, ci) => (
                   <td
                     key={ci}
-                    className="border border-gray-200 dark:border-gray-700 p-0"
+                    className="border border-border p-0"
                   >
                     <input
                       value={cell}
                       onChange={(e) => updateCell(ri, ci, e.target.value)}
                       className={[
                         'w-full min-w-[80px] px-2 py-1 bg-transparent',
-                        'focus:outline-none focus:bg-blue-50 dark:focus:bg-blue-900/20',
+                        'focus:outline-none focus:bg-primary/5',
                         ri === 0 ? 'font-semibold' : 'font-mono',
                       ].join(' ')}
                     />
@@ -108,7 +108,7 @@ export function PasteTable({ onSeries }: Props) {
       <button
         type="button"
         onClick={() => setGrid(null)}
-        className="self-start text-xs text-gray-400 hover:text-red-500 transition-colors"
+        className="self-start text-xs text-muted-foreground hover:text-red-500 transition-colors"
       >
         Clear table
       </button>

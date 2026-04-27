@@ -45,8 +45,8 @@ const Option = ({ icon, title, tab, selected, open, onClick }: OptionProps) => {
       onClick={() => { onClick?.(); setActiveTab(tab) }}
       className={`relative flex h-11 w-full items-center rounded-md transition-colors duration-200 ${
         isSelected
-          ? "bg-blue-50 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 shadow-sm border-l-2 border-blue-500"
-          : "text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-200"
+          ? "bg-primary/10 text-primary shadow-sm border-l-2 border-primary"
+          : "text-muted-foreground hover:bg-accent hover:text-foreground"
       }`}
       transition={{ layout: { duration: 0.25, ease: [0.4, 0, 0.2, 1] } }}
     >
@@ -105,7 +105,7 @@ function CloseConfirmDialog({ graphTitle, onSave, onDiscard, onCancel }: CloseDi
           </button>
           <button
             onClick={onSave}
-            className="rounded-lg bg-blue-600 px-3.5 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+            className="rounded-lg bg-primary px-3.5 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
           >
             Save
           </button>
@@ -240,17 +240,17 @@ export const Sidebar = () => {
 
   return (
     <nav
-      className={`sticky top-0 h-screen shrink-0 border-r transition-all duration-300 ease-in-out ${
+      className={`sticky top-0 h-screen shrink-0 border-r border-border transition-all duration-300 ease-in-out ${
         open ? 'w-56' : 'w-16'
-      } border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-2 shadow-sm flex flex-col`}
+      } bg-muted p-2 shadow-sm flex flex-col`}
     >
       {/* Logo */}
-      <div className="mb-6 border-b border-gray-200 dark:border-gray-800 pb-4">
+      <div className="mb-6 border-b border-border pb-4">
         <div className="flex items-center gap-3 px-2 py-2">
-          <div className="grid size-10 shrink-0 place-content-center rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 shadow-sm">
-            <BarChart2 className="h-5 w-5 text-white" />
+          <div className="grid size-10 shrink-0 place-content-center rounded-lg bg-primary shadow-sm">
+            <BarChart2 className="h-5 w-5 text-primary-foreground" />
           </div>
-          {open && <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">TimeSeries</span>}
+          {open && <span className="text-sm font-semibold text-foreground">TimeSeries</span>}
         </div>
       </div>
 
@@ -262,8 +262,8 @@ export const Sidebar = () => {
             onClick={handleGraphHeaderClick}
             className={`relative flex h-11 w-full items-center rounded-md transition-all duration-200 ${
               isGraphSection
-                ? "bg-blue-50 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 shadow-sm border-l-2 border-blue-500"
-                : "text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-200"
+                ? "bg-primary/10 text-primary shadow-sm border-l-2 border-primary"
+                : "text-muted-foreground hover:bg-accent hover:text-foreground"
             }`}
           >
             <div className="grid h-full w-12 place-content-center"><LineChartIcon className="h-5 w-5" /></div>
@@ -279,7 +279,7 @@ export const Sidebar = () => {
           {open && (
             <button
               onClick={(e) => { e.stopPropagation(); setActiveTab('new-graph') }}
-              className="absolute right-1.5 p-1 rounded-md text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 opacity-0 group-hover:opacity-100 transition-all duration-150"
+              className="absolute right-1.5 p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent opacity-0 group-hover:opacity-100 transition-all duration-150"
               title="New graph"
             >
               <Plus className="h-3.5 w-3.5" />
@@ -320,15 +320,15 @@ export const Sidebar = () => {
                         onClick={() => handleSubTabClick(g.id)}
                         className={`flex h-9 w-full items-center rounded-md pl-12 pr-8 transition-colors duration-200 ${
                           isCurrent
-                            ? 'text-blue-600 dark:text-blue-400'
-                            : 'text-gray-500 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+                            ? 'text-primary'
+                            : 'text-muted-foreground hover:text-foreground'
                         }`}
                       >
                         <span className="truncate text-xs font-medium">{title}</span>
                       </button>
                       <button
                         onClick={(e) => handleCloseClick(e, g.id)}
-                        className="absolute right-1.5 p-0.5 rounded text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 opacity-0 group-hover/tab:opacity-100 transition-all duration-150"
+                        className="absolute right-1.5 p-0.5 rounded text-muted-foreground hover:text-foreground hover:bg-accent opacity-0 group-hover/tab:opacity-100 transition-all duration-150"
                         title="Close graph"
                       >
                         <X className="h-3 w-3" />
@@ -341,29 +341,29 @@ export const Sidebar = () => {
           )}
         </AnimatePresence>
 
-        <div className="mt-5 mb-2 border-t border-gray-200 dark:border-gray-800" />
+        <div className="mt-5 mb-2 border-t border-border" />
 
         <Option icon={<Database className="h-4 w-4" />} title="Databases" tab="db" selected={activeTab} open={open} onClick={handleNonGraphTabClick} />
         <Option icon={<Upload className="h-4 w-4" />} title="Upload" tab="upload" selected={activeTab} open={open} onClick={handleNonGraphTabClick} />
       </div>
 
       {/* Settings at bottom, above collapse */}
-      <div className="space-y-1 border-t border-gray-200 dark:border-gray-800 pt-2 pb-[68px]">
+      <div className="space-y-1 border-t border-border pt-2 pb-[68px]">
         <Option icon={<Settings className="h-4 w-4" />} title="Settings" tab="settings" selected={activeTab} open={open} onClick={handleNonGraphTabClick} />
       </div>
 
       {/* Toggle collapse */}
       <button
         onClick={() => setOpen(!open)}
-        className="absolute bottom-0 left-0 right-0 border-t border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+        className="absolute bottom-0 left-0 right-0 border-t border-border hover:bg-accent transition-colors"
       >
         <div className="flex items-center p-3">
           <div className="grid size-10 place-content-center">
             <ChevronsRight
-              className={`h-4 w-4 transition-transform duration-300 text-gray-500 dark:text-gray-400 ${open ? "rotate-180" : ""}`}
+              className={`h-4 w-4 transition-transform duration-300 text-muted-foreground ${open ? "rotate-180" : ""}`}
             />
           </div>
-          {open && <span className="text-sm font-medium text-gray-600 dark:text-gray-300">Hide</span>}
+          {open && <span className="text-sm font-medium text-muted-foreground">Hide</span>}
         </div>
       </button>
 

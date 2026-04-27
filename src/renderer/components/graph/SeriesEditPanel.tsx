@@ -161,7 +161,7 @@ function MAToast({ ma, seriesPoints, seriesFreq, onChange, onRemove }: MAToastPr
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -6, scale: 0.95 }}
               transition={{ duration: 0.15, ease: 'easeOut' }}
-              className="absolute top-[calc(100%+5px)] left-0 z-50 min-w-[7rem] overflow-hidden rounded-md border-2 border-slate-200 dark:border-zinc-800 bg-slate-100 dark:bg-zinc-900 shadow-lg"
+              className="absolute top-[calc(100%+5px)] left-0 z-50 min-w-[7rem] overflow-hidden rounded-md border-2 border-border bg-muted shadow-lg"
             >
               <motion.div
                 initial="hidden"
@@ -176,8 +176,8 @@ function MAToast({ ma, seriesPoints, seriesFreq, onChange, onRemove }: MAToastPr
                     variants={{ hidden: { opacity: 0, x: -12 }, visible: { opacity: 1, x: 0 } }}
                     className={cn(
                       'block w-full px-3 py-1.5 text-xs text-left capitalize',
-                      'border-b-2 border-slate-200 last:border-b-0 dark:border-zinc-800',
-                      'bg-slate-50 hover:bg-slate-200 dark:bg-zinc-900 dark:hover:bg-zinc-800',
+                      'border-b-2 border-border last:border-b-0',
+                      'bg-card hover:bg-accent',
                       'transition-colors text-foreground',
                       ma.type === t && 'font-semibold',
                     )}
@@ -280,7 +280,7 @@ function SaveDropdown({ selected, onToggle, externalDBs }: SaveDropdownProps) {
         )}
       >
         <span className="flex items-center gap-2 min-w-0">
-          <Database className="h-3.5 w-3.5 shrink-0 text-blue-500" />
+          <Database className="h-3.5 w-3.5 shrink-0 text-primary" />
           <span className="truncate text-muted-foreground">{label}</span>
         </span>
         <motion.span
@@ -304,8 +304,8 @@ function SaveDropdown({ selected, onToggle, externalDBs }: SaveDropdownProps) {
             className={cn(
               'absolute top-[calc(100%+0.35rem)] left-0 right-0 z-50',
               'overflow-hidden rounded-md',
-              'bg-slate-100 dark:bg-zinc-900',
-              'border-2 border-slate-200 dark:border-zinc-800',
+              'bg-muted',
+              'border-2 border-border',
               'shadow-lg',
             )}
           >
@@ -323,19 +323,19 @@ function SaveDropdown({ selected, onToggle, externalDBs }: SaveDropdownProps) {
                 variants={{ hidden: { opacity: 0, x: -20 }, visible: { opacity: 1, x: 0 } }}
                 className={cn(
                   'w-full flex items-center gap-2 px-3 py-2 text-sm text-left',
-                  'bg-slate-50 hover:bg-slate-200 dark:bg-zinc-900 dark:hover:bg-zinc-800',
+                  'bg-card hover:bg-accent',
                   'transition-colors duration-150',
                   selected.has('memory') && 'font-medium',
                 )}
               >
-                <Database className="h-3.5 w-3.5 shrink-0 text-blue-500" />
+                <Database className="h-3.5 w-3.5 shrink-0 text-primary" />
                 <span className="flex-1">Local Memory</span>
                 {selected.has('memory') && <Check className="h-3.5 w-3.5 shrink-0" />}
               </motion.button>
 
               {/* External DBs */}
               {externalDBs.length > 0 && (
-                <div className="border-t-2 border-slate-200 dark:border-zinc-800" />
+                <div className="border-t-2 border-border" />
               )}
 
               {externalDBs.map((db) => (
@@ -349,11 +349,11 @@ function SaveDropdown({ selected, onToggle, externalDBs }: SaveDropdownProps) {
                   variants={{ hidden: { opacity: 0, x: -20 }, visible: { opacity: 1, x: 0 } }}
                   className={cn(
                     'w-full flex items-center gap-2 px-3 py-2 text-sm text-left',
-                    'border-b-2 border-slate-200 last:border-b-0 dark:border-zinc-800',
+                    'border-b-2 border-border last:border-b-0',
                     'transition-colors duration-150',
                     db.reachable
-                      ? 'bg-slate-50 hover:bg-slate-200 dark:bg-zinc-900 dark:hover:bg-zinc-800'
-                      : 'opacity-40 cursor-not-allowed bg-slate-50 dark:bg-zinc-900',
+                      ? 'bg-card hover:bg-accent'
+                      : 'opacity-40 cursor-not-allowed bg-card',
                     selected.has(db.id) && 'font-medium',
                   )}
                 >
@@ -411,8 +411,9 @@ export function SeriesEditPanel({ series, placement, activeTab, onTabChange, onC
   const colorPalette   = useAppStore(s => s.colorPalette)
   const customPalettes = useAppStore(s => s.customPalettes)
   const theme          = useAppStore(s => s.theme)
+  const uiTheme        = useAppStore(s => s.uiTheme)
   const externalDBs    = useDBStore(s => s.externalDBs)
-  const allPalettes    = getAllPalettes(customPalettes, isDarkTheme(theme))
+  const allPalettes    = getAllPalettes(customPalettes, isDarkTheme(theme), uiTheme)
   const paletteColors  = allPalettes[colorPalette] ?? Object.values(allPalettes)[0]
   const panelRef       = useRef<HTMLDivElement>(null)
   const existingMAs    = series.movingAverages ?? []

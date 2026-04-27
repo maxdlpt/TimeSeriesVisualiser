@@ -9,16 +9,20 @@ export const CHART_DEFAULT_WIDTH = 1024
 interface AppState {
   activeTab: Tab
   theme: 'light' | 'dark' | 'system'
+  uiTheme: string
   colorPalette: string
   chartMaxWidth: number
   customPalettes: Record<string, CustomPaletteEntry>
+  alwaysCommonDates: boolean
   // Task #25 coordination flag — see useHydrateSettings for full explanation.
   settingsHydrated: boolean
   setActiveTab: (tab: Tab) => void
   setTheme: (theme: 'light' | 'dark' | 'system') => void
+  setUiTheme: (theme: string) => void
   setColorPalette: (key: string) => void
   setChartMaxWidth: (w: number) => void
   setCustomPalettes: (palettes: Record<string, CustomPaletteEntry>) => void
+  setAlwaysCommonDates: (v: boolean) => void
   addCustomPalette: (name: string, colors: string[], isDark: boolean) => void
   updateCustomPalette: (oldName: string, newName: string, colors: string[], isDark: boolean) => void
   removeCustomPalette: (name: string) => void
@@ -28,15 +32,19 @@ interface AppState {
 export const useAppStore = create<AppState>((set) => ({
   activeTab: 'new-graph',
   theme: 'system',
-  colorPalette: 'default',
+  uiTheme: 'original',
+  colorPalette: 'mono',
   chartMaxWidth: CHART_DEFAULT_WIDTH,
   customPalettes: {},
+  alwaysCommonDates: false,
   settingsHydrated: false,
   setActiveTab: (tab) => set({ activeTab: tab }),
   setTheme: (theme) => set({ theme }),
+  setUiTheme: (uiTheme) => set({ uiTheme }),
   setColorPalette: (colorPalette) => set({ colorPalette }),
   setChartMaxWidth: (chartMaxWidth) => set({ chartMaxWidth }),
   setCustomPalettes: (customPalettes) => set({ customPalettes }),
+  setAlwaysCommonDates: (alwaysCommonDates) => set({ alwaysCommonDates }),
   addCustomPalette: (name, colors, isDark) =>
     set((s) => ({
       customPalettes: {
@@ -64,7 +72,7 @@ export const useAppStore = create<AppState>((set) => ({
       customPalettes: Object.fromEntries(
         Object.entries(s.customPalettes).filter(([k]) => k !== name),
       ),
-      colorPalette: s.colorPalette === name ? 'default' : s.colorPalette,
+      colorPalette: s.colorPalette === name ? 'mono' : s.colorPalette,
     })),
   setSettingsHydrated: () => set({ settingsHydrated: true }),
 }))

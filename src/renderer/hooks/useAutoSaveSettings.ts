@@ -14,12 +14,14 @@ const DEBOUNCE_MS = 600
  * values before the initial `useHydrateSettings` load completes.
  */
 export function useAutoSaveSettings(): void {
-  const settingsHydrated = useAppStore(s => s.settingsHydrated)
-  const theme            = useAppStore(s => s.theme)
-  const colorPalette     = useAppStore(s => s.colorPalette)
-  const chartMaxWidth    = useAppStore(s => s.chartMaxWidth)
-  const customPalettes   = useAppStore(s => s.customPalettes)
-  const externalDBs      = useDBStore(s => s.externalDBs)
+  const settingsHydrated  = useAppStore(s => s.settingsHydrated)
+  const theme             = useAppStore(s => s.theme)
+  const uiTheme           = useAppStore(s => s.uiTheme)
+  const colorPalette      = useAppStore(s => s.colorPalette)
+  const chartMaxWidth     = useAppStore(s => s.chartMaxWidth)
+  const customPalettes    = useAppStore(s => s.customPalettes)
+  const alwaysCommonDates = useAppStore(s => s.alwaysCommonDates)
+  const externalDBs       = useDBStore(s => s.externalDBs)
 
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -29,7 +31,7 @@ export function useAutoSaveSettings(): void {
 
     if (timerRef.current) clearTimeout(timerRef.current)
     timerRef.current = setTimeout(() => {
-      ipc.settings.save({ theme, colorPalette, chartMaxWidth, customPalettes, externalDBs }).catch(() => {
+      ipc.settings.save({ theme, uiTheme, colorPalette, chartMaxWidth, customPalettes, alwaysCommonDates, externalDBs }).catch(() => {
         // Best-effort: IPC save failures are silent. The stored value simply
         // stays at whatever was last successfully written.
       })
@@ -38,5 +40,5 @@ export function useAutoSaveSettings(): void {
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current)
     }
-  }, [settingsHydrated, theme, colorPalette, chartMaxWidth, customPalettes, externalDBs])
+  }, [settingsHydrated, theme, uiTheme, colorPalette, chartMaxWidth, customPalettes, alwaysCommonDates, externalDBs])
 }

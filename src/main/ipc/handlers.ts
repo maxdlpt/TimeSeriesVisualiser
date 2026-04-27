@@ -26,7 +26,7 @@ export function registerHandlers(): void {
     const raw = rawDb.prepare("SELECT value FROM settings WHERE key = 'app'").get() as
       | { value: string }
       | undefined
-    if (!raw) return { theme: 'system', colorPalette: 'default', externalDBs: [] }
+    if (!raw) return { theme: 'system', colorPalette: 'mono', externalDBs: [] }
     return JSON.parse(raw.value)
   }
 

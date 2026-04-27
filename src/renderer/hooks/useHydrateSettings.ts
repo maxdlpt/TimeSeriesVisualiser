@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { ipc } from '../lib/ipc'
 import { generateComplement } from '../lib/colors'
+import { applyUiTheme } from '../lib/theme'
 import { useDBStore } from '../store/db'
 import { useAppStore } from '../store/app'
 import type { CustomPaletteEntry } from '../../shared/types'
@@ -34,6 +35,11 @@ export function useHydrateSettings(): void {
         if (cancelled) return
         useAppStore.getState().setTheme(settings.theme)
         localStorage.setItem('tsv-theme', settings.theme)
+        if (settings.uiTheme) {
+          useAppStore.getState().setUiTheme(settings.uiTheme)
+          localStorage.setItem('tsv-ui-theme', settings.uiTheme)
+          applyUiTheme(settings.uiTheme)
+        }
         useAppStore.getState().setColorPalette(settings.colorPalette)
         if (settings.chartMaxWidth) {
           useAppStore.getState().setChartMaxWidth(settings.chartMaxWidth)
@@ -53,6 +59,9 @@ export function useHydrateSettings(): void {
           useAppStore.getState().setCustomPalettes(migrated)
         }
         useDBStore.getState().setExternalDBs(settings.externalDBs)
+        if (settings.alwaysCommonDates) {
+          useAppStore.getState().setAlwaysCommonDates(settings.alwaysCommonDates)
+        }
         // Flip the flag LAST so gated downstream effects see populated stores.
         useAppStore.getState().setSettingsHydrated()
       })

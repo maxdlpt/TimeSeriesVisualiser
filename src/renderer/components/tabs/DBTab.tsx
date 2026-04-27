@@ -88,11 +88,11 @@ function dbLabel(selected: SelectedDB, externalDBs: ExternalDB[]): string {
 }
 
 function DBIcon({ selected, externalDBs }: { selected: SelectedDB; externalDBs: ExternalDB[] }) {
-  if (selected === 'memory') return <HardDrive className="h-8 w-8 text-blue-500 shrink-0" />
+  if (selected === 'memory') return <HardDrive className="h-8 w-8 text-primary shrink-0" />
   const db = externalDBs.find((d) => d.id === selected)
   return (
     <Database
-      className={cn('h-8 w-8 shrink-0', db?.reachable === false ? 'text-red-400' : 'text-blue-500')}
+      className={cn('h-8 w-8 shrink-0', db?.reachable === false ? 'text-red-400' : 'text-primary')}
     />
   )
 }
@@ -161,8 +161,8 @@ function TitleDropdown({ selected, onSelect, externalDBs, onAddDB, onCreateDB }:
             className={cn(
               'absolute left-0 top-full mt-2 z-50',
               'min-w-[16rem] rounded-lg overflow-hidden',
-              'bg-slate-100 dark:bg-zinc-900',
-              'border-2 border-slate-200 dark:border-zinc-800',
+              'bg-muted',
+              'border-2 border-border',
               'shadow-lg',
             )}
           >
@@ -178,18 +178,18 @@ function TitleDropdown({ selected, onSelect, externalDBs, onAddDB, onCreateDB }:
                 variants={{ hidden: { opacity: 0, x: -20 }, visible: { opacity: 1, x: 0 } }}
                 className={cn(
                   'w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left',
-                  'bg-slate-50 hover:bg-slate-200 dark:bg-zinc-900 dark:hover:bg-zinc-800',
+                  'bg-card hover:bg-accent',
                   'transition-colors duration-150',
                   selected === 'memory' && 'font-medium',
                 )}
               >
-                <HardDrive className="h-3.5 w-3.5 shrink-0 text-blue-500" />
+                <HardDrive className="h-3.5 w-3.5 shrink-0 text-primary" />
                 <span className="flex-1">Local Memory</span>
                 {selected === 'memory' && <Check className="h-3.5 w-3.5 shrink-0" />}
               </motion.button>
 
               {externalDBs.length > 0 && (
-                <div className="border-t-2 border-slate-200 dark:border-zinc-800" />
+                <div className="border-t-2 border-border" />
               )}
 
               {externalDBs.map((db) => (
@@ -200,11 +200,11 @@ function TitleDropdown({ selected, onSelect, externalDBs, onAddDB, onCreateDB }:
                   variants={{ hidden: { opacity: 0, x: -20 }, visible: { opacity: 1, x: 0 } }}
                   className={cn(
                     'w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left',
-                    'border-b-2 border-slate-200 last:border-b-0 dark:border-zinc-800',
+                    'border-b-2 border-border last:border-b-0',
                     'transition-colors duration-150',
                     db.reachable
-                      ? 'bg-slate-50 hover:bg-slate-200 dark:bg-zinc-900 dark:hover:bg-zinc-800'
-                      : 'opacity-40 cursor-not-allowed bg-slate-50 dark:bg-zinc-900',
+                      ? 'bg-card hover:bg-accent'
+                      : 'opacity-40 cursor-not-allowed bg-card',
                     selected === db.id && 'font-medium',
                   )}
                 >
@@ -216,7 +216,7 @@ function TitleDropdown({ selected, onSelect, externalDBs, onAddDB, onCreateDB }:
               ))}
 
               {/* ── Management actions ─────────────────────────────── */}
-              <div className="border-t-2 border-slate-200 dark:border-zinc-800" />
+              <div className="border-t-2 border-border" />
 
               <motion.button
                 type="button"
@@ -224,7 +224,7 @@ function TitleDropdown({ selected, onSelect, externalDBs, onAddDB, onCreateDB }:
                 variants={{ hidden: { opacity: 0, x: -20 }, visible: { opacity: 1, x: 0 } }}
                 className={cn(
                   'w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left',
-                  'bg-slate-50 hover:bg-slate-200 dark:bg-zinc-900 dark:hover:bg-zinc-800',
+                  'bg-card hover:bg-accent',
                   'transition-colors duration-150',
                 )}
               >
@@ -238,7 +238,7 @@ function TitleDropdown({ selected, onSelect, externalDBs, onAddDB, onCreateDB }:
                 variants={{ hidden: { opacity: 0, x: -20 }, visible: { opacity: 1, x: 0 } }}
                 className={cn(
                   'w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left',
-                  'bg-slate-50 hover:bg-slate-200 dark:bg-zinc-900 dark:hover:bg-zinc-800',
+                  'bg-card hover:bg-accent',
                   'transition-colors duration-150',
                 )}
               >
@@ -310,8 +310,8 @@ function SeriesDropdown({ selected, onSelect, records }: SeriesDropdownProps) {
             className={cn(
               'absolute left-0 top-full z-50',
               'min-w-[14rem] max-h-64 overflow-y-auto overflow-x-hidden rounded-lg',
-              'bg-slate-100 dark:bg-zinc-900',
-              'border-2 border-slate-200 dark:border-zinc-800',
+              'bg-muted',
+              'border-2 border-border',
               'shadow-lg',
             )}
           >
@@ -327,7 +327,7 @@ function SeriesDropdown({ selected, onSelect, records }: SeriesDropdownProps) {
                 variants={{ hidden: { opacity: 0, x: -20 }, visible: { opacity: 1, x: 0 } }}
                 className={cn(
                   'w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left',
-                  'bg-slate-50 hover:bg-slate-200 dark:bg-zinc-900 dark:hover:bg-zinc-800',
+                  'bg-card hover:bg-accent',
                   'transition-colors duration-150',
                   selected === 'all' && 'font-medium',
                 )}
@@ -337,7 +337,7 @@ function SeriesDropdown({ selected, onSelect, records }: SeriesDropdownProps) {
               </motion.button>
 
               {records.length > 0 && (
-                <div className="border-t-2 border-slate-200 dark:border-zinc-800" />
+                <div className="border-t-2 border-border" />
               )}
 
               {records.map((r) => (
@@ -348,8 +348,8 @@ function SeriesDropdown({ selected, onSelect, records }: SeriesDropdownProps) {
                   variants={{ hidden: { opacity: 0, x: -20 }, visible: { opacity: 1, x: 0 } }}
                   className={cn(
                     'w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left',
-                    'border-b border-slate-200 last:border-b-0 dark:border-zinc-800',
-                    'bg-slate-50 hover:bg-slate-200 dark:bg-zinc-900 dark:hover:bg-zinc-800',
+                    'border-b border-border last:border-b-0',
+                    'bg-card hover:bg-accent',
                     'transition-colors duration-150',
                     selected === r.id && 'font-medium',
                   )}
@@ -369,11 +369,11 @@ function SeriesDropdown({ selected, onSelect, records }: SeriesDropdownProps) {
 // ─── Import Series Modal ──────────────────────────────────────────────────────
 
 const IMPORT_FREQ_STYLES: Record<string, string> = {
-  daily:     'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-400',
-  monthly:   'bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-400',
-  quarterly: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-400',
-  yearly:    'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-400',
-  unknown:   'bg-gray-100 text-gray-700 dark:bg-gray-700/60 dark:text-gray-300',
+  daily:     'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300',
+  monthly:   'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300',
+  quarterly: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+  yearly:    'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
+  unknown:   'bg-muted text-muted-foreground',
 }
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
@@ -529,7 +529,7 @@ function ImportSeriesModal({ destDbPath, onClose, onImported }: ImportSeriesModa
             )}
           >
             <span className="flex items-center gap-2 min-w-0">
-              <Database className="h-3.5 w-3.5 shrink-0 text-blue-500" />
+              <Database className="h-3.5 w-3.5 shrink-0 text-primary" />
               <span className="truncate">{sourceLabel}</span>
             </span>
             <motion.span
@@ -551,8 +551,8 @@ function ImportSeriesModal({ destDbPath, onClose, onImported }: ImportSeriesModa
                 className={cn(
                   'absolute top-[calc(100%+0.35rem)] left-0 right-0 z-50',
                   'overflow-hidden rounded-md',
-                  'bg-slate-100 dark:bg-zinc-900',
-                  'border-2 border-slate-200 dark:border-zinc-800',
+                  'bg-muted',
+                  'border-2 border-border',
                   'shadow-lg',
                 )}
               >
@@ -567,18 +567,18 @@ function ImportSeriesModal({ destDbPath, onClose, onImported }: ImportSeriesModa
                     variants={{ hidden: { opacity: 0, x: -20 }, visible: { opacity: 1, x: 0 } }}
                     className={cn(
                       'w-full flex items-center gap-2 px-3 py-2 text-sm text-left text-foreground',
-                      'bg-slate-50 hover:bg-slate-200 dark:bg-zinc-900 dark:hover:bg-zinc-800',
+                      'bg-card hover:bg-accent',
                       'transition-colors duration-150',
                       source === 'memory' && 'font-medium',
                     )}
                   >
-                    <Database className="h-3.5 w-3.5 shrink-0 text-blue-500" />
+                    <Database className="h-3.5 w-3.5 shrink-0 text-primary" />
                     <span className="flex-1">Local Memory</span>
                     {source === 'memory' && <Check className="h-3.5 w-3.5 shrink-0" />}
                   </motion.button>
 
                   {externalDBs.length > 0 && (
-                    <div className="border-t-2 border-slate-200 dark:border-zinc-800" />
+                    <div className="border-t-2 border-border" />
                   )}
 
                   {externalDBs.map((db) => (
@@ -589,11 +589,11 @@ function ImportSeriesModal({ destDbPath, onClose, onImported }: ImportSeriesModa
                       variants={{ hidden: { opacity: 0, x: -20 }, visible: { opacity: 1, x: 0 } }}
                       className={cn(
                         'w-full flex items-center gap-2 px-3 py-2 text-sm text-left text-foreground',
-                        'border-b-2 border-slate-200 last:border-b-0 dark:border-zinc-800',
+                        'border-b-2 border-border last:border-b-0',
                         'transition-colors duration-150',
                         db.reachable
-                          ? 'bg-slate-50 hover:bg-slate-200 dark:bg-zinc-900 dark:hover:bg-zinc-800'
-                          : 'opacity-40 cursor-not-allowed bg-slate-50 dark:bg-zinc-900',
+                          ? 'bg-card hover:bg-accent'
+                          : 'opacity-40 cursor-not-allowed bg-card',
                         source === db.id && 'font-medium',
                       )}
                     >
@@ -667,7 +667,7 @@ function ImportSeriesModal({ destDbPath, onClose, onImported }: ImportSeriesModa
                       key={r.id}
                       className={cn(
                         'border-b border-border last:border-none transition-colors',
-                        pending && !status ? 'bg-blue-50/50 dark:bg-blue-950/20' : 'hover:bg-muted/40',
+                        pending && !status ? 'bg-primary/5' : 'hover:bg-muted/40',
                       )}
                     >
                       {/* toggle button */}
@@ -681,7 +681,7 @@ function ImportSeriesModal({ destDbPath, onClose, onImported }: ImportSeriesModa
                           aria-label={pending ? `Remove ${r.name} from selection` : `Stage ${r.name} for import`}
                           className={cn(
                             'relative inline-flex items-center justify-center h-6 w-6 rounded-full transition-colors duration-200 overflow-hidden',
-                            !status && !pending                   && 'bg-muted/60 text-muted-foreground hover:bg-blue-100 hover:text-blue-700 dark:hover:bg-blue-900/40 dark:hover:text-blue-400',
+                            !status && !pending                   && 'bg-muted/60 text-muted-foreground hover:bg-primary/10 hover:text-primary',
                             !status &&  pending && !isHovered     && 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400',
                             !status &&  pending &&  isHovered     && 'bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-400',
                             status === 'loading'                  && 'bg-muted text-muted-foreground cursor-wait',
@@ -771,7 +771,7 @@ function ImportSeriesModal({ destDbPath, onClose, onImported }: ImportSeriesModa
           disabled={pendingIds.size === 0 || confirming}
           className={cn(
             'px-4 py-2 text-sm font-medium rounded-md transition-colors',
-            'bg-blue-600 text-white hover:bg-blue-700',
+            'bg-primary text-primary-foreground hover:bg-primary/90',
             (pendingIds.size === 0 || confirming) && 'opacity-50 cursor-not-allowed',
           )}
         >
@@ -971,7 +971,7 @@ function SeriesMetaPanel({ record, dbPath, dbId, onUpdated }: SeriesMetaPanelPro
                   disabled={saving || !name.trim() || !code.trim()}
                   className={cn(
                     'flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors',
-                    'bg-blue-600 hover:bg-blue-700 text-white',
+                    'bg-primary hover:bg-primary/90 text-primary-foreground',
                     (saving || !name.trim() || !code.trim()) && 'opacity-50 cursor-not-allowed',
                   )}
                 >
@@ -1083,11 +1083,11 @@ function AddDBModal({ onClose, onAdded }: AddDBModalProps) {
         className={cn(
           'flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed py-10 transition-colors cursor-default',
           isDragging
-            ? 'border-blue-400 bg-blue-50 dark:bg-blue-950/20 text-blue-600 dark:text-blue-400'
+            ? 'border-primary bg-primary/5 text-primary'
             : 'border-border bg-muted/30 text-muted-foreground',
         )}
       >
-        <Database className={cn('h-8 w-8', isDragging ? 'text-blue-500' : 'text-muted-foreground/40')} />
+        <Database className={cn('h-8 w-8', isDragging ? 'text-primary' : 'text-muted-foreground/40')} />
         <p className="text-sm">
           {isDragging ? 'Drop to set path' : 'Drag & drop a .db file here'}
         </p>
@@ -1139,7 +1139,7 @@ function AddDBModal({ onClose, onAdded }: AddDBModalProps) {
           disabled={!pathInput.trim() || status === 'checking'}
           className={cn(
             'px-4 py-2 text-sm font-medium rounded-md transition-colors',
-            'bg-blue-600 text-white hover:bg-blue-700',
+            'bg-primary text-primary-foreground hover:bg-primary/90',
             (!pathInput.trim() || status === 'checking') && 'opacity-50 cursor-not-allowed',
           )}
         >

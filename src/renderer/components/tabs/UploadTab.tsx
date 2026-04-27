@@ -72,7 +72,7 @@ function AddAllDropdown({ onSelect }: AddAllDropdownProps) {
       <button
         type="button"
         onClick={() => setOpen(o => !o)}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium bg-blue-500 hover:bg-blue-600 text-white transition-colors"
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium bg-primary hover:bg-primary/90 text-primary-foreground transition-colors"
         style={TITLE_FONT_STYLE}
       >
         Add All
@@ -86,7 +86,7 @@ function AddAllDropdown({ onSelect }: AddAllDropdownProps) {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -6 }}
             transition={{ duration: 0.12 }}
-            className="absolute right-0 top-full mt-2 z-50 min-w-[14rem] rounded-lg overflow-hidden shadow-lg bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800"
+            className="absolute right-0 top-full mt-2 z-50 min-w-[14rem] rounded-lg overflow-hidden shadow-lg bg-card border border-border"
           >
             <motion.div initial="hidden" animate="visible" variants={{ visible: { transition: { staggerChildren: 0.03 } } }}>
 
@@ -95,13 +95,13 @@ function AddAllDropdown({ onSelect }: AddAllDropdownProps) {
                 type="button"
                 variants={{ hidden: { opacity: 0, x: -16 }, visible: { opacity: 1, x: 0 } }}
                 onClick={() => pick({ kind: 'individual' })}
-                className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-left hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors"
+                className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-left hover:bg-accent transition-colors"
               >
                 <Layers className="h-3.5 w-3.5 shrink-0 opacity-60" />
                 <span className="flex-1">Per-card settings</span>
               </motion.button>
 
-              <div className="border-t border-slate-200 dark:border-zinc-800" />
+              <div className="border-t border-border" />
 
               {/* Graphs section */}
               <div className="px-4 pt-2 pb-1">
@@ -111,13 +111,13 @@ function AddAllDropdown({ onSelect }: AddAllDropdownProps) {
                 type="button"
                 variants={{ hidden: { opacity: 0, x: -16 }, visible: { opacity: 1, x: 0 } }}
                 onClick={() => pick({ kind: 'destination', dest: { type: 'graph' } })}
-                className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-left hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors"
+                className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-left hover:bg-accent transition-colors"
               >
-                <BarChart2 className="h-3.5 w-3.5 shrink-0 text-blue-500" />
+                <BarChart2 className="h-3.5 w-3.5 shrink-0 text-primary" />
                 <span className="flex-1">Current Graph</span>
               </motion.button>
 
-              <div className="border-t border-slate-200 dark:border-zinc-800 mt-1" />
+              <div className="border-t border-border mt-1" />
 
               {/* Databases section */}
               <div className="px-4 pt-2 pb-1">
@@ -127,9 +127,9 @@ function AddAllDropdown({ onSelect }: AddAllDropdownProps) {
                 type="button"
                 variants={{ hidden: { opacity: 0, x: -16 }, visible: { opacity: 1, x: 0 } }}
                 onClick={() => pick({ kind: 'destination', dest: { type: 'memory' } })}
-                className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-left hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors"
+                className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-left hover:bg-accent transition-colors"
               >
-                <HardDrive className="h-3.5 w-3.5 shrink-0 text-blue-500" />
+                <HardDrive className="h-3.5 w-3.5 shrink-0 text-primary" />
                 <span className="flex-1">Local Memory</span>
               </motion.button>
 
@@ -139,7 +139,7 @@ function AddAllDropdown({ onSelect }: AddAllDropdownProps) {
                   type="button"
                   variants={{ hidden: { opacity: 0, x: -16 }, visible: { opacity: 1, x: 0 } }}
                   onClick={() => pick({ kind: 'destination', dest: { type: 'external', id: db.id, path: db.path } })}
-                  className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-left hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors"
+                  className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-left hover:bg-accent transition-colors"
                 >
                   <Database className="h-3.5 w-3.5 shrink-0 opacity-60" />
                   <span className="flex-1 truncate">{db.name}</span>
@@ -165,13 +165,15 @@ export function UploadTab(): JSX.Element {
   const colorPalette   = useAppStore((s) => s.colorPalette)
   const customPalettes = useAppStore((s) => s.customPalettes)
   const theme          = useAppStore((s) => s.theme)
+  const uiTheme        = useAppStore((s) => s.uiTheme)
   const activeSeriesCount = useGraphStore((s) => s.activeSeries.length)
 
   const handleSeries = useCallback(
     (series: DataSeries[]) => {
       const colored = series.map((s, i) => ({
         ...s,
-        color: s.color ?? getColor(colorPalette, activeSeriesCount + i, customPalettes, isDarkTheme(theme)),
+        color: s.color ?? getColor(colorPalette, activeSeriesCount + i, customPalettes, isDarkTheme(theme), uiTheme),
+        colorIndex: s.colorIndex ?? activeSeriesCount + i,
       }))
       setPendingSeries(colored)
     },
@@ -234,7 +236,7 @@ export function UploadTab(): JSX.Element {
     <div className="flex flex-col h-full w-full p-8 gap-6">
       {/* Title row */}
       <div className="flex items-center gap-3 leading-none select-none text-foreground" style={TITLE_FONT_STYLE}>
-        <Upload className="h-8 w-8 text-blue-500 shrink-0" />
+        <Upload className="h-8 w-8 text-primary shrink-0" />
         <h2 className="text-4xl font-black leading-none flex-1">Upload Series</h2>
 
         {inReview && (
@@ -242,7 +244,7 @@ export function UploadTab(): JSX.Element {
             <button
               type="button"
               onClick={() => setPendingSeries([])}
-              className="px-3 py-1.5 rounded-md text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors"
+              className="px-3 py-1.5 rounded-md text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
               style={TITLE_FONT_STYLE}
             >
               Cancel

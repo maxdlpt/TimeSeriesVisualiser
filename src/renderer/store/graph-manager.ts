@@ -60,13 +60,14 @@ function loadSnapshotToStore(session: GraphSession) {
   recolorActiveSeries()
 }
 
-/** Assign palette colors to all active series by their position index. */
+/** Assign palette colors to all active series using their saved colorIndex.
+ *  Falls back to array position for legacy series that pre-date colorIndex. */
 function recolorActiveSeries() {
-  const { colorPalette, customPalettes, theme } = useAppStore.getState()
+  const { colorPalette, customPalettes, theme, uiTheme } = useAppStore.getState()
   const { activeSeries, updateSeries } = useGraphStore.getState()
   const dark = isDarkTheme(theme)
   activeSeries.forEach((s, i) => {
-    updateSeries(s.id, { color: getColor(colorPalette, i, customPalettes, dark) })
+    updateSeries(s.id, { color: getColor(colorPalette, s.colorIndex ?? i, customPalettes, dark, uiTheme) })
   })
 }
 

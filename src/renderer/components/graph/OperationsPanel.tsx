@@ -49,22 +49,22 @@ export function OperationsPanel(): JSX.Element {
       animate={{ x: 0 }}
       exit={{ x: '100%' }}
       transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-      className="flex flex-col gap-6 p-4 h-full w-80 bg-white dark:bg-gray-950 border-l border-gray-200 dark:border-gray-800 shadow-xl"
+      className="flex flex-col gap-6 p-4 h-full w-80 bg-background border-l border-border shadow-xl"
     >
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Operations</h3>
+        <h3 className="text-sm font-semibold text-foreground">Operations</h3>
         <button
           type="button"
           aria-label="Close operations panel"
           onClick={() => setRightPanel(null)}
-          className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+          className="text-muted-foreground hover:text-foreground"
         >
           <X className="h-4 w-4" />
         </button>
       </div>
 
       <div className="space-y-2">
-        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Transform (applies to all series)
         </p>
         <Button
@@ -97,8 +97,8 @@ export function OperationsPanel(): JSX.Element {
         </Button>
       </div>
 
-      <div className="border-t border-gray-200 dark:border-gray-800 pt-4 space-y-2">
-        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+      <div className="border-t border-border pt-4 space-y-2">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Save
         </p>
         <SaveMenu />

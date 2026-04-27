@@ -128,7 +128,7 @@ export function NewGraphTab() {
     <div className="flex h-full w-full flex-col overflow-y-auto">
       {/* Title */}
       <div className="flex items-center gap-3 px-8 pt-8 pb-6">
-        <LineChartIcon className="h-8 w-8 text-blue-500 shrink-0" />
+        <LineChartIcon className="h-8 w-8 text-primary shrink-0" />
         <h1 className="text-4xl font-black text-foreground">Open/Create Graph</h1>
       </div>
 
@@ -139,11 +139,11 @@ export function NewGraphTab() {
           <motion.button
             type="button"
             onClick={handleCreateNew}
-            className="flex-1 group flex flex-col items-center justify-center gap-4 rounded-2xl border-2 border-dashed border-border p-12 transition-colors hover:border-blue-400 hover:bg-blue-50/50 dark:hover:bg-blue-900/10"
+            className="flex-1 group flex flex-col items-center justify-center gap-4 rounded-2xl border-2 border-dashed border-border p-12 transition-colors hover:border-primary hover:bg-primary/5"
             whileHover={{ scale: 1.01 }}
             whileTap={{ scale: 0.98 }}
           >
-            <div className="grid h-16 w-16 place-content-center rounded-2xl bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 transition-colors group-hover:bg-blue-200 dark:group-hover:bg-blue-800/50">
+            <div className="grid h-16 w-16 place-content-center rounded-2xl bg-primary/10 text-primary transition-colors group-hover:bg-primary/20">
               <Plus className="h-8 w-8" />
             </div>
             <div className="text-center">
@@ -163,7 +163,7 @@ export function NewGraphTab() {
             className={`flex-1 group flex flex-col items-center justify-center gap-4 rounded-2xl border-2 border-dashed p-12 transition-colors ${
               dragOver
                 ? 'border-emerald-400 bg-emerald-50/50 dark:bg-emerald-900/10'
-                : 'border-border hover:border-blue-400 hover:bg-blue-50/50 dark:hover:bg-blue-900/10'
+                : 'border-border hover:border-primary hover:bg-primary/5'
             }`}
             whileHover={{ scale: 1.01 }}
             whileTap={{ scale: 0.98 }}
@@ -171,7 +171,7 @@ export function NewGraphTab() {
             <div className={`grid h-16 w-16 place-content-center rounded-2xl transition-colors ${
               dragOver
                 ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400'
-                : 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 group-hover:bg-blue-200 dark:group-hover:bg-blue-800/50'
+                : 'bg-primary/10 text-primary group-hover:bg-primary/20'
             }`}>
               <FolderOpen className="h-8 w-8" />
             </div>
@@ -255,12 +255,12 @@ export function NewGraphTab() {
                           }`}
                           onClick={() => !isOpen && handleOpenSaved(g)}
                         >
-                          <LineChartIcon className={`h-5 w-5 shrink-0 ${isOpen ? 'text-gray-400' : 'text-blue-500'}`} />
+                          <LineChartIcon className={`h-5 w-5 shrink-0 ${isOpen ? 'text-muted-foreground' : 'text-primary'}`} />
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
                               <p className="text-sm font-medium text-foreground truncate">{g.name}</p>
                               {isOpen && (
-                                <span className="shrink-0 rounded bg-blue-100 dark:bg-blue-900/40 px-1.5 py-0.5 text-[10px] font-semibold text-blue-600 dark:text-blue-400">
+                                <span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
                                   Open
                                 </span>
                               )}

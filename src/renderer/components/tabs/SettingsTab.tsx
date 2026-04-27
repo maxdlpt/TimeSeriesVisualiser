@@ -1,9 +1,9 @@
 import { useState } from 'react'
-import { AlertCircle, CheckCircle, FolderOpen, Pencil, Plus, Trash2, X } from 'lucide-react'
+import { AlertCircle, CheckCircle, ChevronDown, FolderOpen, Pencil, Plus, Trash2, X } from 'lucide-react'
 import { useAppStore } from '../../store/app'
 import { useDBStore } from '../../store/db'
-import { PALETTES, generateComplement } from '../../lib/colors'
-import { isDarkTheme } from '../../lib/theme'
+import { BUILT_IN_PALETTE_KEYS, getAllPalettes, generateComplement } from '../../lib/colors'
+import { isDarkTheme, UI_THEMES } from '../../lib/theme'
 import { ipc } from '../../lib/ipc'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
@@ -48,7 +48,7 @@ function PaletteEditor({ editor, existingNames, onChange, onSave, onCancel }: Pa
   const trimmedName = editor.name.trim()
 
   // Collides with a built-in or another custom palette (excluding the one being renamed)
-  const isBuiltIn = Object.keys(PALETTES).includes(trimmedName.toLowerCase())
+  const isBuiltIn = (BUILT_IN_PALETTE_KEYS as readonly string[]).includes(trimmedName.toLowerCase())
   const isDuplicate =
     trimmedName !== editor.originalName &&
     existingNames.some((n) => n === trimmedName)
@@ -163,13 +163,16 @@ function PaletteEditor({ editor, existingNames, onChange, onSave, onCancel }: Pa
 // ─── SettingsTab ───────────────────────────────────────────────────────────────
 
 export function SettingsTab() {
-  const { theme, setTheme, colorPalette, setColorPalette, customPalettes, addCustomPalette, updateCustomPalette, removeCustomPalette } = useAppStore()
+  const { theme, setTheme, uiTheme, setUiTheme, colorPalette, setColorPalette, customPalettes, addCustomPalette, updateCustomPalette, removeCustomPalette, alwaysCommonDates, setAlwaysCommonDates } = useAppStore()
   const { externalDBs, addExternalDB, removeExternalDB } = useDBStore()
 
   const [editor, setEditor] = useState<EditorState | null>(null)
+  const [uiThemeOpen, setUiThemeOpen] = useState(false)
 
   const isDark               = isDarkTheme(theme)
   const customPaletteEntries = Object.entries(customPalettes)
+
+  const selectedUiTheme = UI_THEMES.find(t => t.id === uiTheme) ?? UI_THEMES[0]
 
   function openNewEditor() {
     setEditor({ originalName: null, name: '', colors: [...NEW_PALETTE_DEFAULTS], isDark })
@@ -208,37 +211,77 @@ export function SettingsTab() {
 
   return (
     <div className="flex flex-col gap-10 p-8 max-w-2xl mx-auto">
-      <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Settings</h2>
+      <h2 className="text-xl font-semibold text-foreground">Settings</h2>
 
-      {/* ── Theme ─────────────────────────────────────────────────────────────── */}
-      <section className="space-y-3">
-        <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Theme</h3>
-        <div className="flex gap-2">
-          {THEMES.map(t => (
+      {/* ── Appearance ────────────────────────────────────────────────────────── */}
+      <section className="space-y-5">
+        <h3 className="text-sm font-semibold text-foreground">Appearance</h3>
+
+        {/* Mode (light / dark / system) */}
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-muted-foreground">Mode</p>
+          <div className="flex gap-2">
+            {THEMES.map(t => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => setTheme(t)}
+                className={`flex-1 rounded-lg border py-2 text-sm capitalize transition-colors ${
+                  theme === t
+                    ? 'border-primary bg-primary/10 text-primary'
+                    : 'border-border hover:bg-accent'
+                }`}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Theme (app color palette) */}
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-muted-foreground">Theme</p>
+          <div className="relative">
             <button
-              key={t}
               type="button"
-              onClick={() => setTheme(t)}
-              className={`flex-1 rounded-lg border py-2 text-sm capitalize transition-colors ${
-                theme === t
-                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
-                  : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'
-              }`}
+              onClick={() => setUiThemeOpen(o => !o)}
+              className="flex w-full items-center justify-between rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground hover:bg-accent transition-colors"
             >
-              {t}
+              <span>{selectedUiTheme.label}</span>
+              <ChevronDown className={cn('h-4 w-4 text-muted-foreground transition-transform', uiThemeOpen && 'rotate-180')} />
             </button>
-          ))}
+            {uiThemeOpen && (
+              <div className="absolute z-10 mt-1 w-full rounded-lg border border-border bg-popover shadow-md overflow-hidden">
+                {UI_THEMES.map(t => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => { setUiTheme(t.id); setUiThemeOpen(false) }}
+                    className={cn(
+                      'flex w-full items-center px-3 py-2 text-sm transition-colors',
+                      uiTheme === t.id
+                        ? 'bg-accent text-accent-foreground font-medium'
+                        : 'text-popover-foreground hover:bg-accent',
+                    )}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </section>
 
       {/* ── Colour palettes ───────────────────────────────────────────────────── */}
       <section className="space-y-3">
-        <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Graph Palettes</h3>
+        <h3 className="text-sm font-semibold text-foreground">Graph Palettes</h3>
 
         {/* Built-in */}
         <div className="grid grid-cols-2 gap-2">
-          {Object.entries(PALETTES).map(([key, lightColors]) => {
-            const displayColors = (isDark ? generateComplement(lightColors) : lightColors).slice(0, 5)
+          {BUILT_IN_PALETTE_KEYS.map((key) => {
+            const allPalettes = getAllPalettes({}, isDark, uiTheme)
+            const displayColors = (allPalettes[key] ?? []).slice(0, 5)
             return (
             <button
               key={key}
@@ -247,11 +290,11 @@ export function SettingsTab() {
               onClick={() => { setColorPalette(key); setEditor(null) }}
               className={`rounded-lg border p-3 text-left transition-colors ${
                 colorPalette === key
-                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                  : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'
+                  ? 'border-primary bg-primary/10'
+                  : 'border-border hover:bg-accent'
               }`}
             >
-              <p className="text-xs font-medium capitalize mb-2 text-gray-900 dark:text-gray-100">{key}</p>
+              <p className="text-xs font-medium capitalize mb-2 text-foreground">{key}</p>
               <div className="flex gap-1">
                 {displayColors.map(c => (
                   <span key={c} className="h-4 w-4 rounded-full" style={{ backgroundColor: c }} />
@@ -278,11 +321,11 @@ export function SettingsTab() {
                       className={cn(
                         'w-full rounded-lg border p-3 text-left transition-colors pr-14',
                         colorPalette === name
-                          ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                          : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800',
+                          ? 'border-primary bg-primary/10'
+                          : 'border-border hover:bg-accent',
                       )}
                     >
-                      <p className="text-xs font-medium mb-2 text-gray-900 dark:text-gray-100 truncate">{name}</p>
+                      <p className="text-xs font-medium mb-2 text-foreground truncate">{name}</p>
                       <div className="flex gap-1 flex-wrap">
                         {displayColors.map((c, i) => (
                           // biome-ignore lint/suspicious/noArrayIndexKey: stable display order
@@ -337,11 +380,36 @@ export function SettingsTab() {
         )}
       </section>
 
-      <div className="border-t border-gray-200 dark:border-gray-800" />
+      <div className="border-t border-border" />
+
+      {/* ── Graph functionalities ─────────────────────────────────────────────── */}
+      <section className="space-y-3">
+        <h3 className="text-sm font-semibold text-foreground">Graph functionalities</h3>
+        <label className="flex items-start gap-3 cursor-pointer group">
+          <div className="relative flex-shrink-0 mt-0.5">
+            <input
+              type="checkbox"
+              className="sr-only peer"
+              checked={alwaysCommonDates}
+              onChange={e => setAlwaysCommonDates(e.target.checked)}
+            />
+            {/* Track */}
+            <div className="w-9 h-5 rounded-full bg-input peer-checked:bg-primary transition-colors" />
+            {/* Knob */}
+            <div className="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-background shadow-sm transition-transform peer-checked:translate-x-4" />
+          </div>
+          <div>
+            <p className="text-sm font-medium text-foreground leading-snug">Always sync date windows</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              When on, the chart only shows dates where every visible series has data. Off by default.
+            </p>
+          </div>
+        </label>
+      </section>
 
       {/* ── External databases ────────────────────────────────────────────────── */}
       <section className="space-y-3">
-        <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">External databases</h3>
+        <h3 className="text-sm font-semibold text-foreground">External databases</h3>
 
         <div className="flex">
           <Button variant="outline" size="sm" onClick={handleBrowseForDB}>
@@ -351,20 +419,20 @@ export function SettingsTab() {
 
         <div className="space-y-2">
           {externalDBs.length === 0 && (
-            <p className="text-sm text-gray-400 dark:text-gray-500">No external databases configured.</p>
+            <p className="text-sm text-muted-foreground">No external databases configured.</p>
           )}
           {externalDBs.map(db => (
             <div
               key={db.id}
-              className="flex items-center gap-3 rounded-lg border border-gray-200 dark:border-gray-800 p-3"
+              className="flex items-center gap-3 rounded-lg border border-border p-3"
             >
               {db.reachable
                 ? <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
                 : <AlertCircle className="h-4 w-4 text-red-400 flex-shrink-0" />
               }
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{db.name}</p>
-                <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{db.path}</p>
+                <p className="text-sm font-medium text-foreground">{db.name}</p>
+                <p className="text-xs text-muted-foreground truncate">{db.path}</p>
                 {!db.reachable && (
                   <p className="text-xs text-red-400 dark:text-red-400">
                     unreachable — re-checked on next startup
@@ -375,7 +443,7 @@ export function SettingsTab() {
                 type="button"
                 aria-label={`Remove ${db.name}`}
                 onClick={() => removeExternalDB(db.id)}
-                className="p-1 rounded text-gray-400 hover:text-red-500 transition-colors flex-shrink-0"
+                className="p-1 rounded text-muted-foreground hover:text-red-500 transition-colors flex-shrink-0"
               >
                 <Trash2 className="h-4 w-4" />
               </button>

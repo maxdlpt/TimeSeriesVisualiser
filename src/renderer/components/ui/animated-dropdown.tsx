@@ -89,8 +89,8 @@ export default function AnimatedDropdown<V extends string = string>({
             className={cn(
               'absolute top-[calc(100%+0.5rem)] left-1/2 z-50 w-fit min-w-full -translate-x-1/2',
               'overflow-hidden rounded-md',
-              'bg-slate-100 dark:bg-zinc-900',
-              'border-2 border-slate-200 dark:border-zinc-800',
+              'bg-muted',
+              'border-2 border-border',
               'shadow-lg'
             )}
           >
@@ -118,8 +118,8 @@ export default function AnimatedDropdown<V extends string = string>({
                     }}
                     className={cn(
                       'block w-full px-3 py-2 text-sm text-left',
-                      'border-b-2 border-slate-200 last:border-b-0 dark:border-zinc-800',
-                      'bg-slate-50 hover:bg-slate-200 dark:bg-zinc-900 dark:hover:bg-zinc-800',
+                      'border-b border-border last:border-b-0',
+                      'bg-card hover:bg-accent',
                       'transition-colors duration-150',
                       'text-foreground',
                       isSelected && 'font-medium'

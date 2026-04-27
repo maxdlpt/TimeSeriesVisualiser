@@ -1,13 +1,30 @@
 import type { CustomPaletteEntry } from '../../shared/types'
 
+// ─── Built-in static palettes (light-mode colors) ────────────────────────────
+// Mono is NOT listed here — it is generated dynamically from the active UI
+// theme's primary color via generateMonoPalette() at render time.
+
 export const PALETTES: Record<string, string[]> = {
-  default:  ['#3b82f6', '#ef4444', '#22c55e', '#f59e0b', '#8b5cf6', '#06b6d4', '#f97316', '#ec4899'],
-  pastel:   ['#93c5fd', '#fca5a5', '#86efac', '#fde68a', '#c4b5fd', '#67e8f9', '#fed7aa', '#f9a8d4'],
-  muted:    ['#60a5fa', '#f87171', '#4ade80', '#fbbf24', '#a78bfa', '#22d3ee', '#fb923c', '#f472b6'],
-  mono:     ['#1d4ed8', '#1e40af', '#1e3a8a', '#172554', '#0f172a', '#334155', '#475569', '#64748b'],
   // Asset-class palette — Private Equity, Public Equity, Fixed Income, Hedge Funds,
-  // Cash, Real Assets, Other (blue-grey).  Dark variant auto-generated via generateComplement.
+  // Cash, Real Assets, Other (blue-grey).
   corporate: ['#0d1e38', '#74b2e2', '#c8ddf0', '#D9F05A', '#FF5532', '#DCD8CB', '#6e7c8a'],
+}
+
+/** Ordered list of all built-in palette keys, including the dynamic `mono`. */
+export const BUILT_IN_PALETTE_KEYS = ['mono', 'corporate'] as const
+
+// ─── UI-theme primary colors ──────────────────────────────────────────────────
+// Light-mode primary hex for each UI theme. Used to derive the Mono palette's
+// hue and saturation regardless of whether dark mode is active.
+
+const THEME_PRIMARIES: Record<string, string> = {
+  original: '#0f172a',
+  gold:     '#b45309',
+  ocean:    '#375bc8',
+  forest:   '#15803d',
+  rose:     '#be185d',
+  midnight: '#4f46e5',
+  dracula:  '#7d514f',
 }
 
 // ─── HSL conversion helpers ───────────────────────────────────────────────────
@@ -74,19 +91,41 @@ export function generateComplement(colors: string[]): string[] {
 /** @deprecated Use generateComplement */
 export const generateDarkVariant = generateComplement
 
+// ─── Dynamic Mono palette ─────────────────────────────────────────────────────
+
+/**
+ * Generate a 7-shade monochromatic palette anchored to the current UI theme's
+ * primary color.  The hue and saturation are taken from the theme's light-mode
+ * primary (so the palette stays recognisably "amber" for Gold, "blue" for Ocean,
+ * etc.) while lightness steps are chosen for legibility against the current
+ * background: dark shades for light mode, light shades for dark mode.
+ */
+function generateMonoPalette(uiTheme: string, isDark: boolean): string[] {
+  const primary = THEME_PRIMARIES[uiTheme] ?? THEME_PRIMARIES.original
+  const [h, s] = hexToHsl(primary)
+  const sat = Math.min(s, 75) // cap saturation so steps don't over-saturate
+  const steps = isDark
+    ? [85, 75, 65, 55, 45, 35, 25]   // light → medium: visible on dark bg
+    : [15, 23, 31, 39, 47, 55, 63]   // dark → medium: visible on white bg
+  return steps.map(l => hslToHex(h, sat, l))
+}
+
 // ─── Palette resolution ───────────────────────────────────────────────────────
 
 /**
  * Merge built-in palettes with user-created ones, selecting the appropriate
- * theme variant for each.  Built-in palettes are defined in light-mode colors;
- * their dark variant is derived on-the-fly via `generateComplement` (same
- * algorithm used for custom palettes).
+ * theme variant for each.  The dynamic Mono palette is generated from the
+ * current UI theme's primary color.  Static built-ins use generateComplement
+ * for dark mode.  Custom palettes use their explicit `.dark` / `.light` arrays.
  */
 export function getAllPalettes(
   customPalettes: Record<string, CustomPaletteEntry>,
   isDark = false,
+  uiTheme = 'original',
 ): Record<string, string[]> {
-  const builtIn: Record<string, string[]> = {}
+  const builtIn: Record<string, string[]> = {
+    mono: generateMonoPalette(uiTheme, isDark),
+  }
   for (const [name, colors] of Object.entries(PALETTES)) {
     builtIn[name] = isDark ? generateComplement(colors) : colors
   }
@@ -102,8 +141,9 @@ export function getColor(
   index: number,
   customPalettes: Record<string, CustomPaletteEntry> = {},
   isDark = false,
+  uiTheme = 'original',
 ): string {
-  const all = getAllPalettes(customPalettes, isDark)
-  const colors = all[palette] ?? PALETTES.default
+  const all = getAllPalettes(customPalettes, isDark, uiTheme)
+  const colors = all[palette] ?? all.mono
   return colors[index % colors.length]
 }

@@ -33,11 +33,11 @@ function MiniLineChartIcon({ className }: { className?: string }) {
 // ─── Frequency badge ──────────────────────────────────────────────────────────
 
 const FREQ_STYLES: Record<NonNullable<DataFreq> | 'unknown', string> = {
-  daily:     'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-400',
-  monthly:   'bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-400',
-  quarterly: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-400',
-  yearly:    'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-400',
-  unknown:   'bg-gray-100 text-gray-700 dark:bg-gray-700/60 dark:text-gray-300',
+  daily:     'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300',
+  monthly:   'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300',
+  quarterly: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+  yearly:    'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
+  unknown:   'bg-muted text-muted-foreground',
 }
 
 const FREQ_ORDER: Record<NonNullable<DataFreq> | 'unknown', number> = {
@@ -87,8 +87,8 @@ function DataTypeBadge({ record, onUpdate }: DataTypeBadgeProps) {
         className={cn(
           'px-2.5 py-0.5 text-xs font-semibold rounded-full whitespace-nowrap transition-colors',
           isLevel
-            ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-400 hover:bg-emerald-200 dark:hover:bg-emerald-900/60'
-            : 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-400 hover:bg-indigo-200 dark:hover:bg-indigo-900/60',
+            ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 hover:bg-indigo-200 dark:hover:bg-indigo-900/60'
+            : 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300 hover:bg-teal-200 dark:hover:bg-teal-900/60',
         )}
       >
         {isLevel ? 'Level' : 'Returns'}
@@ -101,14 +101,14 @@ function DataTypeBadge({ record, onUpdate }: DataTypeBadgeProps) {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -4 }}
             transition={{ duration: 0.1 }}
-            className="absolute left-0 top-full mt-1 z-50 min-w-[7rem] rounded-lg overflow-hidden shadow-lg bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800"
+            className="absolute left-0 top-full mt-1 z-50 min-w-[7rem] rounded-lg overflow-hidden shadow-lg bg-card border border-border"
           >
             {(['growth', 'level'] as const).map(type => (
               <button
                 key={type}
                 type="button"
                 onClick={() => { onUpdate(record.id, type); setOpen(false) }}
-                className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors"
+                className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-accent transition-colors"
               >
                 <span className="flex-1 capitalize">{type === 'growth' ? 'Returns' : 'Level'}</span>
                 {current === type && <Check className="h-3 w-3 shrink-0 opacity-50" />}
@@ -142,6 +142,7 @@ export function MiniChart({ record, dbPath, dbId, className = 'h-10 w-28' }: Min
   const colorPalette   = useAppStore((s) => s.colorPalette)
   const customPalettes = useAppStore((s) => s.customPalettes)
   const theme          = useAppStore((s) => s.theme)
+  const uiTheme        = useAppStore((s) => s.uiTheme)
   const isDark         = isDarkTheme(theme)
 
   useEffect(() => {
@@ -161,7 +162,7 @@ export function MiniChart({ record, dbPath, dbId, className = 'h-10 w-28' }: Min
 
   const geomPts = toGeomIndex(series.points)
   const chartData = geomPts.map((p) => ({ date: p.date, [record.code]: p.value }))
-  const color = getColor(colorPalette, 0, customPalettes, isDark)
+  const color = getColor(colorPalette, 0, customPalettes, isDark, uiTheme)
 
   return (
     <div className={className}>
@@ -267,6 +268,7 @@ function RowActions({ record, dbPath, dbId, onDelete }: RowActionsProps) {
   const colorPalette   = useAppStore((s) => s.colorPalette)
   const customPalettes = useAppStore((s) => s.customPalettes)
   const theme          = useAppStore((s) => s.theme)
+  const uiTheme        = useAppStore((s) => s.uiTheme)
   const isDark         = isDarkTheme(theme)
   const addSeries      = useGraphStore((s) => s.addSeries)
   const activeCount    = useGraphStore((s) => s.activeSeries.length)
@@ -289,7 +291,7 @@ function RowActions({ record, dbPath, dbId, onDelete }: RowActionsProps) {
       : ipc.memory.getSeries(record.id)
     const series = await fetcher
     if (!series) return
-    const color = getColor(colorPalette, activeCount, customPalettes, isDark)
+    const color = getColor(colorPalette, activeCount, customPalettes, isDark, uiTheme)
     addSeries({ ...series, color })
   }
 
@@ -359,8 +361,8 @@ function RowActions({ record, dbPath, dbId, onDelete }: RowActionsProps) {
               className={cn(
                 'absolute top-[calc(100%+0.35rem)] right-0 z-50',
                 'overflow-hidden rounded-md min-w-[130px]',
-                'bg-slate-100 dark:bg-zinc-900',
-                'border-2 border-slate-200 dark:border-zinc-800',
+                'bg-muted',
+                'border-2 border-border',
                 'shadow-lg',
               )}
             >
@@ -375,7 +377,7 @@ function RowActions({ record, dbPath, dbId, onDelete }: RowActionsProps) {
                   variants={{ hidden: { opacity: 0, x: -20 }, visible: { opacity: 1, x: 0 } }}
                   className={cn(
                     'w-full flex items-center gap-2 px-3 py-2 text-sm text-left whitespace-nowrap',
-                    'bg-slate-50 hover:bg-slate-200 dark:bg-zinc-900 dark:hover:bg-zinc-800',
+                    'bg-card hover:bg-accent',
                     'transition-colors duration-150',
                   )}
                 >
@@ -513,8 +515,8 @@ export function SeriesList({ records, loading, error, dbPath, dbId, onDelete, on
                         : <span className={cn(
                             'px-2.5 py-0.5 text-xs font-semibold rounded-full',
                             (r.dataType ?? 'growth') === 'level'
-                              ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-400'
-                              : 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-400',
+                              ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300'
+                              : 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300',
                           )}>
                             {(r.dataType ?? 'growth') === 'level' ? 'Level' : 'Returns'}
                           </span>

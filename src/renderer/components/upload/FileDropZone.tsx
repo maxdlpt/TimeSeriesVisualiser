@@ -41,16 +41,16 @@ export function FileDropZone({ onSeries }: Props) {
       onClick={() => inputRef.current?.click()}
       className={`flex flex-col items-center justify-center gap-4 rounded-xl border-2 border-dashed p-16 cursor-pointer transition-colors ${
         isDragging
-          ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/20'
-          : 'border-gray-300 dark:border-gray-700 hover:border-blue-300 hover:bg-gray-50 dark:hover:bg-gray-800/50'
+          ? 'border-primary bg-primary/5'
+          : 'border-border hover:border-primary/40 hover:bg-primary/5'
       }`}
     >
-      <Upload className="h-10 w-10 text-gray-400" />
+      <Upload className="h-10 w-10 text-muted-foreground" />
       <div className="text-center">
-        <p className="text-base font-medium text-gray-700 dark:text-gray-300">
+        <p className="text-base font-medium text-foreground">
           Drop CSV or Excel file here
         </p>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+        <p className="text-sm text-muted-foreground mt-1">
           or click to browse · First column must be dates
         </p>
       </div>

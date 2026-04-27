@@ -58,6 +58,7 @@ export function serializeSeries(s: DataSeries): SessionSeries {
     source: s.source,
     dbId: s.dbId,
     color: s.color,
+    colorIndex: s.colorIndex,
     visible: s.visible,
     lineStyle: s.lineStyle,
     lineWidth: s.lineWidth,

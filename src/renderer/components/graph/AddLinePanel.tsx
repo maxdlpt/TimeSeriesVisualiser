@@ -77,7 +77,7 @@ function SourceDropdown({ source, onSelect, externalDBs, onUpload }: SourceDropd
         )}
       >
         <span className="flex items-center gap-2 min-w-0">
-          <Database className="h-3.5 w-3.5 shrink-0 text-blue-500" />
+          <Database className="h-3.5 w-3.5 shrink-0 text-primary" />
           <span className="truncate">{label}</span>
         </span>
         <motion.span
@@ -100,8 +100,8 @@ function SourceDropdown({ source, onSelect, externalDBs, onUpload }: SourceDropd
             className={cn(
               'absolute top-[calc(100%+0.35rem)] left-0 right-0 z-50',
               'overflow-hidden rounded-md',
-              'bg-slate-100 dark:bg-zinc-900',
-              'border-2 border-slate-200 dark:border-zinc-800',
+              'bg-muted',
+              'border-2 border-border',
               'shadow-lg',
             )}
           >
@@ -118,18 +118,18 @@ function SourceDropdown({ source, onSelect, externalDBs, onUpload }: SourceDropd
                 variants={{ hidden: { opacity: 0, x: -20 }, visible: { opacity: 1, x: 0 } }}
                 className={cn(
                   'w-full flex items-center gap-2 px-3 py-2 text-sm text-left',
-                  'bg-slate-50 hover:bg-slate-200 dark:bg-zinc-900 dark:hover:bg-zinc-800',
+                  'bg-card hover:bg-accent',
                   'transition-colors duration-150',
                   source === 'memory' && 'font-medium',
                 )}
               >
-                <Database className="h-3.5 w-3.5 shrink-0 text-blue-500" />
+                <Database className="h-3.5 w-3.5 shrink-0 text-primary" />
                 <span className="flex-1">Local Memory</span>
                 {source === 'memory' && <Check className="h-3.5 w-3.5 shrink-0" />}
               </motion.button>
 
               {externalDBs.length > 0 && (
-                <div className="border-t-2 border-slate-200 dark:border-zinc-800" />
+                <div className="border-t-2 border-border" />
               )}
 
               {externalDBs.map((db) => (
@@ -143,11 +143,11 @@ function SourceDropdown({ source, onSelect, externalDBs, onUpload }: SourceDropd
                   variants={{ hidden: { opacity: 0, x: -20 }, visible: { opacity: 1, x: 0 } }}
                   className={cn(
                     'w-full flex items-center gap-2 px-3 py-2 text-sm text-left',
-                    'border-b-2 border-slate-200 last:border-b-0 dark:border-zinc-800',
+                    'border-b-2 border-border last:border-b-0',
                     'transition-colors duration-150',
                     db.reachable
-                      ? 'bg-slate-50 hover:bg-slate-200 dark:bg-zinc-900 dark:hover:bg-zinc-800'
-                      : 'opacity-40 cursor-not-allowed bg-slate-50 dark:bg-zinc-900',
+                      ? 'bg-card hover:bg-accent'
+                      : 'opacity-40 cursor-not-allowed bg-card',
                     source === db.id && 'font-medium',
                   )}
                 >
@@ -158,14 +158,14 @@ function SourceDropdown({ source, onSelect, externalDBs, onUpload }: SourceDropd
                 </motion.button>
               ))}
 
-              <div className="border-t-2 border-slate-200 dark:border-zinc-800" />
+              <div className="border-t-2 border-border" />
               <motion.button
                 type="button"
                 onClick={() => { setOpen(false); onUpload() }}
                 variants={{ hidden: { opacity: 0, x: -20 }, visible: { opacity: 1, x: 0 } }}
                 className={cn(
                   'w-full flex items-center gap-2 px-3 py-2 text-sm text-left',
-                  'bg-slate-50 hover:bg-slate-200 dark:bg-zinc-900 dark:hover:bg-zinc-800',
+                  'bg-card hover:bg-accent',
                   'transition-colors duration-150 text-muted-foreground hover:text-foreground',
                 )}
               >
@@ -192,6 +192,7 @@ interface SeriesRowProps {
   colorIndex: number
   customPalettes: Record<string, CustomPaletteEntry>
   isDark: boolean
+  uiTheme: string
   expanded: boolean
   onToggle: () => void
 }
@@ -206,6 +207,7 @@ function SeriesRow({
   colorIndex,
   customPalettes,
   isDark,
+  uiTheme,
   expanded,
   onToggle,
 }: SeriesRowProps) {
@@ -227,7 +229,7 @@ function SeriesRow({
     fetcher
       .then((result) => {
         if (!cancelled && result) {
-          setSeries({ ...result, color: getColor(colorPalette, colorIndex, customPalettes, isDark) })
+          setSeries({ ...result, color: getColor(colorPalette, colorIndex, customPalettes, isDark, uiTheme), colorIndex })
         }
       })
       .catch(() => { /* preview failure is non-critical */ })
@@ -294,8 +296,8 @@ function SeriesRow({
                     >
                       <Area
                         dataKey={record.code}
-                        stroke={getColor(colorPalette, 0, customPalettes, isDark)}
-                        fill={getColor(colorPalette, 0, customPalettes, isDark)}
+                        stroke={getColor(colorPalette, 0, customPalettes, isDark, uiTheme)}
+                        fill={getColor(colorPalette, 0, customPalettes, isDark, uiTheme)}
                         fillOpacity={0.15}
                       />
                     </AreaChart>
@@ -341,6 +343,7 @@ export function AddLinePanel({ placement, onClose }: AddLinePanelProps): JSX.Ele
   const colorPalette   = useAppStore((s) => s.colorPalette)
   const customPalettes = useAppStore((s) => s.customPalettes)
   const theme          = useAppStore((s) => s.theme)
+  const uiTheme        = useAppStore((s) => s.uiTheme)
   const setActiveTab   = useAppStore((s) => s.setActiveTab)
   const isDark         = isDarkTheme(theme)
 
@@ -482,6 +485,7 @@ export function AddLinePanel({ placement, onClose }: AddLinePanelProps): JSX.Ele
                 colorIndex={activeSeries.length + i}
                 customPalettes={customPalettes}
                 isDark={isDark}
+                uiTheme={uiTheme}
                 expanded={expandedId === r.id}
                 onToggle={() => setExpandedId(expandedId === r.id ? null : r.id)}
               />

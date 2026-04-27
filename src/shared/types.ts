@@ -43,6 +43,10 @@ export interface DataSeries {
   source: 'memory' | 'external'
   dbId?: string          // only when source === 'external'
   color?: string
+  /** Palette slot index assigned when the series was first added to a graph.
+   *  Used to reassign the correct palette colour on theme/palette change,
+   *  independently of the series' current position in the array. */
+  colorIndex?: number
   visible?: boolean      // true when undefined; false hides from chart without removing
   lineStyle?: 'solid' | 'dashed' | 'dotted'  // defaults to 'solid'
   lineWidth?: number     // stroke width in px; defaults to 2
@@ -126,6 +130,7 @@ export interface SessionSeries {
   source: 'memory' | 'external'
   dbId?: string
   color?: string
+  colorIndex?: number
   visible?: boolean
   lineStyle?: 'solid' | 'dashed' | 'dotted'
   lineWidth?: number
@@ -185,8 +190,11 @@ export interface SavedGraphMeta {
 
 export interface AppSettings {
   theme: 'light' | 'dark' | 'system'
+  uiTheme?: string       // UI colour theme key (e.g. 'gold', 'ocean'); absent = 'original'
   colorPalette: string   // palette key
   chartMaxWidth?: number // px; controlled by Ctrl+scroll in GraphTab; absent in pre-v2 saves
   customPalettes?: Record<string, CustomPaletteEntry>  // absent in pre-v2 saves
   externalDBs: ExternalDB[]
+  /** When true, the chart only shows timestamps present in all visible series. Default false. */
+  alwaysCommonDates?: boolean
 }

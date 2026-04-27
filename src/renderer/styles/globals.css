@@ -4,109 +4,479 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /* ------------------------------------------------------------------
-   shadcn design tokens — light (default, shadcn-slate palette)
+   Original theme — shadcn slate palette (hex values, applied by default)
    ------------------------------------------------------------------ */
 :root {
-  --background: 0 0% 100%;
-  --foreground: 222.2 84% 4.9%;
+  --background: #ffffff;
+  --foreground: #020817;
 
-  --card: 0 0% 100%;
-  --card-foreground: 222.2 84% 4.9%;
+  --card: #ffffff;
+  --card-foreground: #020817;
 
-  --popover: 0 0% 100%;
-  --popover-foreground: 222.2 84% 4.9%;
+  --popover: #ffffff;
+  --popover-foreground: #020817;
 
-  --primary: 222.2 47.4% 11.2%;
-  --primary-foreground: 210 40% 98%;
+  --primary: #0f172a;
+  --primary-foreground: #f8fafc;
 
-  --secondary: 210 40% 96.1%;
-  --secondary-foreground: 222.2 47.4% 11.2%;
+  --secondary: #f1f5f9;
+  --secondary-foreground: #0f172a;
 
-  --muted: 210 40% 96.1%;
-  --muted-foreground: 215.4 16.3% 46.9%;
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b;
 
-  --accent: 210 40% 96.1%;
-  --accent-foreground: 222.2 47.4% 11.2%;
+  --accent: #f1f5f9;
+  --accent-foreground: #0f172a;
 
-  --destructive: 0 84.2% 60.2%;
-  --destructive-foreground: 210 40% 98%;
+  --destructive: #ef4444;
+  --destructive-foreground: #f8fafc;
 
-  --border: 214.3 31.8% 91.4%;
-  --input: 214.3 31.8% 91.4%;
-  --ring: 222.2 84% 4.9%;
+  --border: #e2e8f0;
+  --input: #e2e8f0;
+  --ring: #020817;
 
   --radius: 0.5rem;
 }
 
-/* ------------------------------------------------------------------
-   shadcn design tokens — dark (activated when `.dark` class is on
-   <html> via lib/theme.ts applyTheme())
-   ------------------------------------------------------------------ */
 .dark {
-  --background: 222.2 84% 4.9%;
-  --foreground: 210 40% 98%;
+  --background: #020817;
+  --foreground: #f8fafc;
 
-  --card: 222.2 84% 4.9%;
-  --card-foreground: 210 40% 98%;
+  --card: #020817;
+  --card-foreground: #f8fafc;
 
-  --popover: 222.2 84% 4.9%;
-  --popover-foreground: 210 40% 98%;
+  --popover: #020817;
+  --popover-foreground: #f8fafc;
 
-  --primary: 210 40% 98%;
-  --primary-foreground: 222.2 47.4% 11.2%;
+  --primary: #f8fafc;
+  --primary-foreground: #0f172a;
 
-  --secondary: 217.2 32.6% 17.5%;
-  --secondary-foreground: 210 40% 98%;
+  --secondary: #1e293b;
+  --secondary-foreground: #f8fafc;
 
-  --muted: 217.2 32.6% 17.5%;
-  --muted-foreground: 215 20.2% 65.1%;
+  --muted: #1e293b;
+  --muted-foreground: #94a3b8;
 
-  --accent: 217.2 32.6% 17.5%;
-  --accent-foreground: 210 40% 98%;
+  --accent: #1e293b;
+  --accent-foreground: #f8fafc;
 
-  --destructive: 0 62.8% 30.6%;
-  --destructive-foreground: 210 40% 98%;
+  --destructive: #7f1d1d;
+  --destructive-foreground: #f8fafc;
 
-  --border: 217.2 32.6% 17.5%;
-  --input: 217.2 32.6% 17.5%;
-  --ring: 212.7 26.8% 83.9%;
+  --border: #1e293b;
+  --input: #1e293b;
+  --ring: #cbd5e1;
 }
 
 /* ------------------------------------------------------------------
-   Expose the tokens to Tailwind v4 so utilities like `bg-background`,
-   `border-input`, `text-foreground` resolve. `@theme inline` keeps the
-   variable references live (instead of snapshotting values at build
-   time), which is what makes the `.dark` override above actually swap
-   colors at runtime.
+   Gold theme — burnished amber, warm parchment
+   Primary surface stays near-neutral; accent drives amber throughout.
+   ------------------------------------------------------------------ */
+html[data-ui-theme="gold"] {
+  --background: #fdfbf5;
+  --foreground: #1c1917;
+
+  --card: #ffffff;
+  --card-foreground: #1c1917;
+
+  --popover: #ffffff;
+  --popover-foreground: #1c1917;
+
+  --primary: #b45309;
+  --primary-foreground: #fffbeb;
+
+  --secondary: #f5f1e8;
+  --secondary-foreground: #1c1917;
+
+  --muted: #f5f1e8;
+  --muted-foreground: #78716c;
+
+  --accent: #fef3c7;
+  --accent-foreground: #1c1917;
+
+  --destructive: #ef4444;
+  --destructive-foreground: #fffbeb;
+
+  --border: #e8e1d5;
+  --input: #e8e1d5;
+  --ring: #b45309;
+}
+
+html[data-ui-theme="gold"].dark {
+  --background: #111009;
+  --foreground: #fafaf9;
+
+  --card: #1c180e;
+  --card-foreground: #fafaf9;
+
+  --popover: #1c180e;
+  --popover-foreground: #fafaf9;
+
+  --primary: #fbbf24;
+  --primary-foreground: #111009;
+
+  --secondary: #1c1710;
+  --secondary-foreground: #fafaf9;
+
+  --muted: #1c1710;
+  --muted-foreground: #a8a29e;
+
+  --accent: #2a1f08;
+  --accent-foreground: #fafaf9;
+
+  --destructive: #7f1d1d;
+  --destructive-foreground: #fafaf9;
+
+  --border: #272119;
+  --input: #272119;
+  --ring: #fbbf24;
+}
+
+/* ------------------------------------------------------------------
+   Ocean theme — deep navy, clear sky
+   ------------------------------------------------------------------ */
+html[data-ui-theme="ocean"] {
+  --background: #eef6f7;
+  --foreground: #102023;
+
+  --card: #ffffff;
+  --card-foreground: #102023;
+
+  --popover: #ffffff;
+  --popover-foreground: #102023;
+
+  --primary: #375bc8;
+  --primary-foreground: #ebeffa;
+
+  --secondary: #edf8f4;
+  --secondary-foreground: #102023;
+
+  --muted: #eef6f7;
+  --muted-foreground: #316168;
+
+  --accent: #dcecef;
+  --accent-foreground: #102023;
+
+  --destructive: #ef4444;
+  --destructive-foreground: #ebeffa;
+
+  --border: #bad9de;
+  --input: #bad9de;
+  --ring: #375bc8;
+}
+
+html[data-ui-theme="ocean"].dark {
+  --background: #060320;
+  --foreground: #eef6f7;
+
+  --card: #09052e;
+  --card-foreground: #eef6f7;
+
+  --popover: #09052e;
+  --popover-foreground: #eef6f7;
+
+  --primary: #6cc6a3;
+  --primary-foreground: #0a1a14;
+
+  --secondary: #09052e;
+  --secondary-foreground: #eef6f7;
+
+  --muted: #09052e;
+  --muted-foreground: #91d4ba;
+
+  --accent: #0f0840;
+  --accent-foreground: #eef6f7;
+
+  --destructive: #7f1d1d;
+  --destructive-foreground: #eef6f7;
+
+  --border: #120a5c;
+  --input: #120a5c;
+  --ring: #6cc6a3;
+}
+
+/* ------------------------------------------------------------------
+   Forest theme — old-growth greens
+   ------------------------------------------------------------------ */
+html[data-ui-theme="forest"] {
+  --background: #f7fbf7;
+  --foreground: #0f1f13;
+
+  --card: #ffffff;
+  --card-foreground: #0f1f13;
+
+  --popover: #ffffff;
+  --popover-foreground: #0f1f13;
+
+  --primary: #15803d;
+  --primary-foreground: #f0fdf4;
+
+  --secondary: #ebf5ed;
+  --secondary-foreground: #0f1f13;
+
+  --muted: #ebf5ed;
+  --muted-foreground: #3d7050;
+
+  --accent: #dcfce7;
+  --accent-foreground: #0f1f13;
+
+  --destructive: #ef4444;
+  --destructive-foreground: #f0fdf4;
+
+  --border: #c2dfc8;
+  --input: #c2dfc8;
+  --ring: #15803d;
+}
+
+html[data-ui-theme="forest"].dark {
+  --background: #080e09;
+  --foreground: #f0fdf4;
+
+  --card: #0e1910;
+  --card-foreground: #f0fdf4;
+
+  --popover: #0e1910;
+  --popover-foreground: #f0fdf4;
+
+  --primary: #4ade80;
+  --primary-foreground: #080e09;
+
+  --secondary: #0e1e11;
+  --secondary-foreground: #f0fdf4;
+
+  --muted: #0e1e11;
+  --muted-foreground: #6aaf7e;
+
+  --accent: #0a180d;
+  --accent-foreground: #f0fdf4;
+
+  --destructive: #7f1d1d;
+  --destructive-foreground: #f0fdf4;
+
+  --border: #142018;
+  --input: #142018;
+  --ring: #4ade80;
+}
+
+/* ------------------------------------------------------------------
+   Rose theme — refined mauve, not candy
+   ------------------------------------------------------------------ */
+html[data-ui-theme="rose"] {
+  --background: #fdf8f9;
+  --foreground: #1a0e14;
+
+  --card: #ffffff;
+  --card-foreground: #1a0e14;
+
+  --popover: #ffffff;
+  --popover-foreground: #1a0e14;
+
+  --primary: #be185d;
+  --primary-foreground: #fff1f2;
+
+  --secondary: #f8eef2;
+  --secondary-foreground: #1a0e14;
+
+  --muted: #f8eef2;
+  --muted-foreground: #8c4560;
+
+  --accent: #fce7f3;
+  --accent-foreground: #1a0e14;
+
+  --destructive: #ef4444;
+  --destructive-foreground: #fff1f2;
+
+  --border: #f0ccd8;
+  --input: #f0ccd8;
+  --ring: #be185d;
+}
+
+html[data-ui-theme="rose"].dark {
+  --background: #0e0810;
+  --foreground: #fff1f2;
+
+  --card: #19101a;
+  --card-foreground: #fff1f2;
+
+  --popover: #19101a;
+  --popover-foreground: #fff1f2;
+
+  --primary: #f472b6;
+  --primary-foreground: #0e0810;
+
+  --secondary: #1e1020;
+  --secondary-foreground: #fff1f2;
+
+  --muted: #1e1020;
+  --muted-foreground: #c476a2;
+
+  --accent: #1a0b1a;
+  --accent-foreground: #fff1f2;
+
+  --destructive: #7f1d1d;
+  --destructive-foreground: #fff1f2;
+
+  --border: #241428;
+  --input: #241428;
+  --ring: #f472b6;
+}
+
+/* ------------------------------------------------------------------
+   Midnight theme — deep indigo, quant-fund authority
+   ------------------------------------------------------------------ */
+html[data-ui-theme="midnight"] {
+  --background: #f9f8fe;
+  --foreground: #130f26;
+
+  --card: #ffffff;
+  --card-foreground: #130f26;
+
+  --popover: #ffffff;
+  --popover-foreground: #130f26;
+
+  --primary: #4f46e5;
+  --primary-foreground: #eef2ff;
+
+  --secondary: #f0eefb;
+  --secondary-foreground: #130f26;
+
+  --muted: #f0eefb;
+  --muted-foreground: #5c54a0;
+
+  --accent: #e0e7ff;
+  --accent-foreground: #130f26;
+
+  --destructive: #ef4444;
+  --destructive-foreground: #eef2ff;
+
+  --border: #d0cce8;
+  --input: #d0cce8;
+  --ring: #4f46e5;
+}
+
+html[data-ui-theme="midnight"].dark {
+  --background: #09090f;
+  --foreground: #eef2ff;
+
+  --card: #10101c;
+  --card-foreground: #eef2ff;
+
+  --popover: #10101c;
+  --popover-foreground: #eef2ff;
+
+  --primary: #818cf8;
+  --primary-foreground: #09090f;
+
+  --secondary: #14142a;
+  --secondary-foreground: #eef2ff;
+
+  --muted: #14142a;
+  --muted-foreground: #9d92d8;
+
+  --accent: #11102a;
+  --accent-foreground: #eef2ff;
+
+  --destructive: #7f1d1d;
+  --destructive-foreground: #eef2ff;
+
+  --border: #1e1e38;
+  --input: #1e1e38;
+  --ring: #818cf8;
+}
+
+html[data-ui-theme="dracula"] {
+  --background: #f3f4f0;
+  --foreground: #1b1d16;
+
+  --card: #ffffff;
+  --card-foreground: #1b1d16;
+
+  --popover: #ffffff;
+  --popover-foreground: #1b1d16;
+
+  --primary: #7d514f;
+  --primary-foreground: #f5f0ef;
+
+  --secondary: #f2f3f2;
+  --secondary-foreground: #1b1d16;
+
+  --muted: #f2f3f2;
+  --muted-foreground: #616b61;
+
+  --accent: #e7e9e2;
+  --accent-foreground: #1b1d16;
+
+  --destructive: #ef4444;
+  --destructive-foreground: #f5f0ef;
+
+  --border: #cfd4c4;
+  --input: #cfd4c4;
+  --ring: #7d514f;
+}
+
+html[data-ui-theme="dracula"].dark {
+  --background: #13150f;
+  --foreground: #e7e9e2;
+
+  --card: #1b1d16;
+  --card-foreground: #e7e9e2;
+
+  --popover: #1b1d16;
+  --popover-foreground: #e7e9e2;
+
+  --primary: #c4a3a1;
+  --primary-foreground: #160e0e;
+
+  --secondary: #1b1d16;
+  --secondary-foreground: #e7e9e2;
+
+  --muted: #1b1d16;
+  --muted-foreground: #9fa88a;
+
+  --accent: #232519;
+  --accent-foreground: #e7e9e2;
+
+  --destructive: #7f1d1d;
+  --destructive-foreground: #e7e9e2;
+
+  --border: #363b2b;
+  --input: #363b2b;
+  --ring: #c4a3a1;
+}
+
+/* ------------------------------------------------------------------
+   Expose tokens to Tailwind v4 so utilities like `bg-background`,
+   `text-foreground` etc. resolve correctly. `@theme inline` keeps
+   references live so the data-ui-theme overrides above swap at runtime.
    ------------------------------------------------------------------ */
 @theme inline {
-  --color-background: hsl(var(--background));
-  --color-foreground: hsl(var(--foreground));
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
 
-  --color-card: hsl(var(--card));
-  --color-card-foreground: hsl(var(--card-foreground));
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
 
-  --color-popover: hsl(var(--popover));
-  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
 
-  --color-primary: hsl(var(--primary));
-  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
 
-  --color-secondary: hsl(var(--secondary));
-  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
 
-  --color-muted: hsl(var(--muted));
-  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
 
-  --color-accent: hsl(var(--accent));
-  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
 
-  --color-destructive: hsl(var(--destructive));
-  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
 
-  --color-border: hsl(var(--border));
-  --color-input: hsl(var(--input));
-  --color-ring: hsl(var(--ring));
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
 
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
@@ -141,6 +511,43 @@ html, body, #root {
   --chart-crosshair: oklch(0.72 0 0);
   --chart-grid: oklch(0.33 0 0);
   --chart-label: oklch(0.88 0.01 260);
+}
+
+/* Per-theme chart crosshair — matches the accent color so the interactive
+   cursor feels part of the same visual language as the rest of the UI. */
+html[data-ui-theme="gold"] {
+  --chart-crosshair: oklch(0.54 0.16 70);
+}
+html[data-ui-theme="gold"].dark {
+  --chart-crosshair: oklch(0.78 0.16 80);
+}
+
+html[data-ui-theme="ocean"] {
+  --chart-crosshair: oklch(0.46 0.16 225);
+}
+html[data-ui-theme="ocean"].dark {
+  --chart-crosshair: oklch(0.73 0.14 210);
+}
+
+html[data-ui-theme="forest"] {
+  --chart-crosshair: oklch(0.46 0.15 155);
+}
+html[data-ui-theme="forest"].dark {
+  --chart-crosshair: oklch(0.73 0.16 155);
+}
+
+html[data-ui-theme="rose"] {
+  --chart-crosshair: oklch(0.46 0.22 350);
+}
+html[data-ui-theme="rose"].dark {
+  --chart-crosshair: oklch(0.73 0.20 355);
+}
+
+html[data-ui-theme="midnight"] {
+  --chart-crosshair: oklch(0.46 0.22 275);
+}
+html[data-ui-theme="midnight"].dark {
+  --chart-crosshair: oklch(0.71 0.22 275);
 }
 
 @theme inline {

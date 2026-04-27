@@ -79,8 +79,8 @@ function EditableHeader({ name, dirty, onCommit, onFocus }: EditableHeaderProps)
           }}
           className={cn(
             'flex-1 min-w-0 px-1.5 py-0.5 text-sm font-medium text-center rounded',
-            'bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400',
-            'outline-none ring-1 ring-blue-400/50',
+            'bg-primary/10 text-primary',
+            'outline-none ring-1 ring-primary/40',
           )}
         />
         <button
@@ -110,7 +110,7 @@ function EditableHeader({ name, dirty, onCommit, onFocus }: EditableHeaderProps)
       className={cn(
         'w-full px-3 py-2.5 text-sm font-medium text-center whitespace-nowrap',
         'hover:text-foreground transition-colors',
-        dirty ? 'text-blue-600 dark:text-blue-400' : 'text-muted-foreground',
+        dirty ? 'text-primary' : 'text-muted-foreground',
       )}
     >
       {name}
@@ -148,9 +148,9 @@ function Cell({
       data-col={colIdx}
       className={cn(
         'border-r border-border last:border-r-0 p-0 relative',
-        inRange && !selected && 'bg-blue-100 dark:bg-blue-900/50',
-        selected && 'bg-blue-50 dark:bg-blue-950/40',
-        selected && '[box-shadow:inset_0_0_0_2px_#3b82f6] dark:[box-shadow:inset_0_0_0_2px_#60a5fa] z-[5]',
+        inRange && !selected && 'bg-primary/10',
+        selected && 'bg-primary/5',
+        selected && 'ring-2 ring-inset ring-primary z-[5]',
       )}
       onPointerDown={onPointerDown}
       onDoubleClick={onDoubleClick}
@@ -164,15 +164,15 @@ function Cell({
           onKeyDown={onInputKeyDown}
           className={cn(
             'w-full h-full px-3 py-2.5 text-sm tabular-nums text-center',
-            'bg-blue-50 dark:bg-blue-950/40 outline-none',
-            'text-blue-700 dark:text-blue-300',
+            'bg-primary/5 outline-none',
+            'text-primary',
           )}
         />
       ) : (
         <div
           className={cn(
             'px-3 py-2.5 text-sm tabular-nums text-center select-none',
-            dirty ? 'text-blue-600 dark:text-blue-400' : 'text-foreground',
+            dirty ? 'text-primary' : 'text-foreground',
             !displayValue && 'text-muted-foreground/30',
           )}
         >
@@ -730,7 +730,7 @@ export function DataTable({ records, dbPath, dbId, filter }: DataTableProps) {
                 disabled={saving}
                 className={cn(
                   'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium',
-                  'bg-blue-600 hover:bg-blue-700 text-white transition-colors',
+                  'bg-primary hover:bg-primary/90 text-primary-foreground transition-colors',
                   saving && 'opacity-60 cursor-not-allowed',
                 )}
               >

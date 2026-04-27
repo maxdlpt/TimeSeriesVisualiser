@@ -13,7 +13,7 @@ import { cn } from '../../lib/utils'
 import { ipc, serializeSeries } from '../../lib/ipc'
 import { computeMA } from '../../lib/ma'
 import { reconstructLevels, toLevelIndex } from '../../lib/transforms'
-import type { DataFreq, DataSeries, DataPoint, SavedGraph, CumMethod } from '../../../shared/types'
+import type { DataFreq, DataSeries, DataPoint, SavedGraph, CumMethod, SeriesTransform } from '../../../shared/types'
 
 function ExportImageIcon({ className }: { className?: string }) {
   return (
@@ -296,7 +296,7 @@ function applyDrawdown(series: DataSeries[]): DataSeries[] {
  * Strategy: union of all dates across series, null where a series has no value at that date.
  * This preserves visible gaps in sparse data — honest for financial time-series.
  */
-function pivotSeries(series: DataSeries[]): Record<string, unknown>[] {
+function pivotSeries(series: DataSeries[], intersectOnly = false): Record<string, unknown>[] {
   if (series.length === 0) return []
 
   // MA timestamps are always a strict subset of the parent series' timestamps
@@ -304,13 +304,18 @@ function pivotSeries(series: DataSeries[]): Record<string, unknown>[] {
   // the timestamp set — no extra timestamps from MAs.
   const timestamps = new Set<number>()
   for (const s of series) for (const p of s.points) timestamps.add(p.date.getTime())
-  const sorted = Array.from(timestamps).sort((a, b) => a - b)
 
   const lookups = series.map((s) => {
     const m = new Map<number, number>()
     for (const p of s.points) m.set(p.date.getTime(), p.value)
     return m
   })
+
+  // When intersectOnly, keep only timestamps present in every series.
+  let sorted = Array.from(timestamps).sort((a, b) => a - b)
+  if (intersectOnly && series.length > 1) {
+    sorted = sorted.filter(ts => lookups.every(m => m.has(ts)))
+  }
 
   // MA data keys use `__ma__<uuid>` — collision-free with any user series code
   const maLookups = new Map<string, Map<number, number>>()
@@ -493,7 +498,7 @@ function SpinDropdown({ options, labels, value, onSelect }: SpinDropdownProps) {
             transition={{ duration: 0.15, ease: 'easeOut' }}
             // position: fixed escapes all overflow:hidden ancestors
             style={{ position: 'fixed', top: dropRect.top, left: dropRect.left, minWidth: dropRect.minWidth, zIndex: 500, transform: 'translateX(-50%)' }}
-            className="max-h-44 overflow-y-auto overflow-x-hidden rounded-md border-2 border-slate-200 dark:border-zinc-800 bg-slate-100 dark:bg-zinc-900 shadow-lg"
+            className="max-h-44 overflow-y-auto overflow-x-hidden rounded-md border-2 border-border bg-muted shadow-lg"
           >
             <motion.div
               ref={listRef}
@@ -510,8 +515,8 @@ function SpinDropdown({ options, labels, value, onSelect }: SpinDropdownProps) {
                   variants={{ hidden: { opacity: 0, x: -8 }, visible: { opacity: 1, x: 0 } }}
                   className={cn(
                     'block w-full px-3 py-1.5 text-xs text-left tabular-nums',
-                    'border-b border-slate-200 last:border-b-0 dark:border-zinc-800',
-                    'bg-slate-50 hover:bg-slate-200 dark:bg-zinc-900 dark:hover:bg-zinc-800',
+                    'border-b border-border last:border-b-0',
+                    'bg-card hover:bg-accent',
                     'transition-colors text-foreground',
                     opt === value && 'font-semibold',
                   )}
@@ -685,9 +690,10 @@ function resolveBaseDate(series: DataSeries[], baseInput: string): Date | null {
 
 export function GraphTab(): JSX.Element {
   const { activeSeries, removeSeries, reorderSeries, toggleSeriesVisibility, updateSeries, rightPanel, setRightPanel, zoomDomain, setZoomDomain, showGrid, setShowGrid, graphTitle, setGraphTitle, savedFilename, setSavedFilename } = useGraphStore()
-  const activeTab        = useAppStore((s) => s.activeTab)
-  const chartMaxWidth    = useAppStore((s) => s.chartMaxWidth)
-  const setChartMaxWidth = useAppStore((s) => s.setChartMaxWidth)
+  const activeTab           = useAppStore((s) => s.activeTab)
+  const chartMaxWidth       = useAppStore((s) => s.chartMaxWidth)
+  const setChartMaxWidth    = useAppStore((s) => s.setChartMaxWidth)
+  const alwaysCommonDates   = useAppStore((s) => s.alwaysCommonDates)
 
   const [selectedSeriesId,  setSelectedSeriesId]  = useState<string | null>(null)
   const [selectedSeriesTab, setSelectedSeriesTab] = useState<'format' | 'calculations' | 'save'>('format')
@@ -748,9 +754,9 @@ export function GraphTab(): JSX.Element {
       canvas.height = canvasH
       const ctx = canvas.getContext('2d')!
 
-      // Fill background — read from the app layout root (bg-gray-50 / bg-gray-950)
-      const appRoot = document.querySelector('.flex.h-screen') as HTMLElement | null
-      ctx.fillStyle = appRoot ? getComputedStyle(appRoot).backgroundColor : '#f9fafb'
+      // Fill background — read the computed --background token so exports match the active theme.
+      const bgColor = getComputedStyle(document.documentElement).getPropertyValue('--background').trim()
+      ctx.fillStyle = bgColor || '#ffffff'
       ctx.fillRect(0, 0, canvasW, canvasH)
 
       // Draw title at top-left with padding
@@ -967,12 +973,12 @@ export function GraphTab(): JSX.Element {
   }, [activeSeries])
 
   const visibleSeries = useMemo(() => displaySeries.filter(s => s.visible !== false), [displaySeries])
-  const pivoted = useMemo(() => pivotSeries(visibleSeries), [visibleSeries])
+  const pivoted = useMemo(() => pivotSeries(visibleSeries, alwaysCommonDates), [visibleSeries, alwaysCommonDates])
 
-  // Check if any series uses a specific transform
-  const hasCumulative = activeSeries.some(s => (s.transform ?? 'returns') === 'cumulative')
-  const hasDrawdown = activeSeries.some(s => (s.transform ?? 'returns') === 'drawdown')
-  const hasReturns = activeSeries.some(s => (s.transform ?? 'returns') === 'returns')
+  // Check if any *visible* series uses a specific transform (hidden series don't affect axis layout)
+  const hasCumulative = visibleSeries.some(s => (s.transform ?? 'returns') === 'cumulative')
+  const hasDrawdown = visibleSeries.some(s => (s.transform ?? 'returns') === 'drawdown')
+  const hasReturns = visibleSeries.some(s => (s.transform ?? 'returns') === 'returns')
 
   // ── Axis assignment ──────────────────────────────────────────────────────────
   // Rules: index always left, drawdown always right when not alone,
@@ -1004,17 +1010,17 @@ export function GraphTab(): JSX.Element {
 
   // Resolved base date — only meaningful when we have cumulative series
   const resolvedBaseDate = useMemo(() => {
-    const cumSeries = activeSeries.filter(s => (s.transform ?? 'returns') === 'cumulative')
+    const cumSeries = visibleSeries.filter(s => (s.transform ?? 'returns') === 'cumulative')
     if (cumSeries.length === 0) return null
     // Use the first cumulative series' base input
     const baseInput = cumSeries[0].cumBaseInput ?? ''
     return resolveBaseDate(cumSeries, baseInput)
-  }, [activeSeries])
+  }, [visibleSeries])
 
   // ── Y-axis domain computation ────────────────────────────────────────────────
   const { yDomainLeft, yDomainRight } = useMemo(() => {
-    const leftSeries = displaySeries.filter(s => seriesAxisSide(s.transform ?? 'returns') === 'left')
-    const rightSeries = displaySeries.filter(s => seriesAxisSide(s.transform ?? 'returns') === 'right')
+    const leftSeries = visibleSeries.filter(s => seriesAxisSide(s.transform ?? 'returns') === 'left')
+    const rightSeries = visibleSeries.filter(s => seriesAxisSide(s.transform ?? 'returns') === 'right')
 
     const leftNat = naturalDomain(leftSeries)
     const rightNat = rightSeries.length > 0 ? naturalDomain(rightSeries) : null
@@ -1041,20 +1047,22 @@ export function GraphTab(): JSX.Element {
     }
 
     return { yDomainLeft: leftNat, yDomainRight: undefined }
-  }, [displaySeries, leftAxisMode, rightAxisMode, seriesAxisSide])
+  }, [visibleSeries, leftAxisMode, rightAxisMode, seriesAxisSide])
 
   // Build a lookup from data-key (series code or __ma__<id>) to display info
   // so the ChartTooltip rows callback can resolve names, colours, and styles.
   const seriesInfoMap = useMemo(() => {
-    const m = new Map<string, { name: string; color: string; lineStyle?: string; lineWidth?: number }>()
+    const m = new Map<string, { name: string; color: string; lineStyle?: string; lineWidth?: number; transform: SeriesTransform }>()
     for (const s of displaySeries) {
-      m.set(s.code, { name: s.name, color: s.color ?? '#3b82f6', lineStyle: s.lineStyle, lineWidth: s.lineWidth })
+      const transform: SeriesTransform = s.transform ?? 'returns'
+      m.set(s.code, { name: s.name, color: s.color ?? '#3b82f6', lineStyle: s.lineStyle, lineWidth: s.lineWidth, transform })
       for (const ma of s.movingAverages ?? []) {
         m.set(`__ma__${ma.id}`, {
           name: `${s.name} MA(${ma.window})`,
           color: ma.color ?? s.color ?? '#888',
           lineStyle: ma.lineStyle ?? 'dotted',
           lineWidth: ma.lineWidth ?? 1,
+          transform,
         })
       }
     }
@@ -1460,7 +1468,7 @@ export function GraphTab(): JSX.Element {
         {/* Graph title — editable inline, top-left aligned like Upload/Settings tabs */}
         <div className="flex items-center justify-between px-8 pt-8 shrink-0">
           <div ref={exportTitleRef} className="flex items-center gap-3 leading-none select-none text-foreground" style={WIN_FONT_STYLE}>
-            <LineChartIcon className="h-8 w-8 text-blue-500 shrink-0" />
+            <LineChartIcon className="h-8 w-8 text-primary shrink-0" />
             <h2
               ref={titleRef}
               contentEditable
@@ -1551,7 +1559,7 @@ export function GraphTab(): JSX.Element {
           {activeSeries.length === 0 ? (
             <div
               data-testid="graph-empty-state"
-              className="flex flex-1 w-full flex-col items-center justify-center gap-4 text-gray-400 dark:text-gray-500"
+              className="flex flex-1 w-full flex-col items-center justify-center gap-4 text-muted-foreground"
             >
               <LineChartIcon className="h-12 w-12 opacity-25" />
               <p className="text-sm">No series selected.</p>
@@ -1609,43 +1617,73 @@ export function GraphTab(): JSX.Element {
                     formatValue={leftAxisMode !== 'index' ? (v) => `${v.toFixed(1)}%` : undefined}
                   />
                   {hasRightAxis && (
-                    <YAxisRight origin={0} formatValue={(v) => `${v.toFixed(1)}%`} />
+                    <YAxisRight
+                      leftOrigin={leftAxisMode === 'index' ? 100 : 0}
+                      formatValue={(v) => `${v.toFixed(1)}%`}
+                    />
                   )}
                   <Crosshair skipAnimation={isZooming} />
                   {showTooltip && <ChartTooltip
                     order={tooltipOrder}
                     anchor={leftAxisMode === 'drawdown' && !hasRightAxis ? 'bottom' : 'top'}
-                    rows={(dataKey, color, value) => {
-                      const info = seriesInfoMap.get(dataKey)
-                      if (!info) return null
-                      const isMA = dataKey.startsWith('__ma__')
-                      const fmtVal = (v: number | null) => {
+                    renderRows={(lines) => {
+                      const fmtVal = (v: number | null, transform: SeriesTransform) => {
                         if (v === null) return '\u2013'
-                        // Determine transform from the series this key belongs to
-                        const parentSeries = activeSeries.find(s => s.code === dataKey || (s.movingAverages ?? []).some(m => `__ma__${m.id}` === dataKey))
-                        const transform = parentSeries?.transform ?? 'returns'
                         const isCum = transform === 'cumulative'
                         const absStr = Math.abs(v).toFixed(isCum ? 1 : 2)
                         const suffix = isCum ? '' : '%'
                         return v < 0 ? `(${absStr}${suffix})` : `${absStr}${suffix}`
                       }
-                      const dashArray =
-                        info.lineStyle === 'dashed' ? '4 2' :
-                        info.lineStyle === 'dotted' ? '1.5 2' :
-                        undefined
+                      const renderLine = (dataKey: string, color: string, value: number | null) => {
+                        const info = seriesInfoMap.get(dataKey)
+                        if (!info) return null
+                        const isMA = dataKey.startsWith('__ma__')
+                        const dashArray =
+                          info.lineStyle === 'dashed' ? '4 2' :
+                          info.lineStyle === 'dotted' ? '1.5 2' :
+                          undefined
+                        return (
+                          <div key={dataKey} className={cn('flex items-center gap-2', isMA ? 'pl-3 opacity-75' : 'py-0.5')}>
+                            <svg width="16" height="8" aria-hidden="true" className="shrink-0">
+                              <line
+                                x1="1" y1="4" x2="15" y2="4"
+                                stroke={color}
+                                strokeWidth={info.lineWidth ?? (isMA ? 1 : 2)}
+                                strokeLinecap="round"
+                                strokeDasharray={dashArray}
+                              />
+                            </svg>
+                            <span className="tabular-nums text-xs font-medium text-popover-foreground">{fmtVal(value, info.transform)}</span>
+                          </div>
+                        )
+                      }
+                      // Group by transform type; only show headers when multiple types are present
+                      const groups: Array<[SeriesTransform, typeof lines]> = []
+                      for (const line of lines) {
+                        const t: SeriesTransform = seriesInfoMap.get(line.dataKey)?.transform ?? 'returns'
+                        const existing = groups.find(([gt]) => gt === t)
+                        if (existing) existing[1].push(line)
+                        else groups.push([t, [line]])
+                      }
+                      const LABELS: Record<SeriesTransform, string> = {
+                        cumulative: 'Index',
+                        drawdown: 'Drawdown',
+                        returns: 'Returns',
+                      }
+                      const multiGroup = groups.length > 1
                       return (
-                        <div className={cn('flex items-center gap-2', isMA ? 'pl-3 opacity-75' : 'py-0.5')}>
-                          <svg width="16" height="8" aria-hidden="true" className="shrink-0">
-                            <line
-                              x1="1" y1="4" x2="15" y2="4"
-                              stroke={color}
-                              strokeWidth={info.lineWidth ?? (isMA ? 1 : 2)}
-                              strokeLinecap="round"
-                              strokeDasharray={dashArray}
-                            />
-                          </svg>
-                          <span className="tabular-nums text-xs font-medium text-popover-foreground">{fmtVal(value)}</span>
-                        </div>
+                        <>
+                          {groups.map(([transform, groupLines]) => (
+                            <div key={transform}>
+                              {multiGroup && (
+                                <p className="text-[10px] font-semibold uppercase tracking-wide text-popover-foreground/40 mt-1 mb-0.5 first:mt-0">
+                                  {LABELS[transform]}
+                                </p>
+                              )}
+                              {groupLines.map(({ dataKey, color, value }) => renderLine(dataKey, color, value))}
+                            </div>
+                          ))}
+                        </>
                       )
                     }}
                   />}
@@ -1658,21 +1696,26 @@ export function GraphTab(): JSX.Element {
                   <SegmentLineFrom />
                   <SegmentLineTo />
                   {/* Render visible series in reverse so legend[0] paints last = on top */}
-                  {[...visibleSeries].reverse().map((s) => (
-                    <Area
-                      key={s.id}
-                      dataKey={s.code}
-                      stroke={s.color ?? '#3b82f6'}
-                      fillOpacity={0}
-                      strokeWidth={s.lineWidth ?? 2}
-                      strokeDasharray={
-                        s.lineStyle === 'dashed' ? '6 3' :
-                        s.lineStyle === 'dotted' ? '2 3' :
-                        undefined
-                      }
-                      yAxis={seriesAxisSide(s.transform ?? 'returns')}
-                    />
-                  ))}
+                  {[...visibleSeries].reverse().map((s) => {
+                    const isDD = (s.transform ?? 'returns') === 'drawdown'
+                    return (
+                      <Area
+                        key={s.id}
+                        dataKey={s.code}
+                        stroke={s.color ?? '#3b82f6'}
+                        fill={s.color ?? '#3b82f6'}
+                        fillOpacity={isDD ? 0.35 : 0}
+                        fillBaseline={isDD ? 'top' : 'bottom'}
+                        strokeWidth={s.lineWidth ?? 2}
+                        strokeDasharray={
+                          s.lineStyle === 'dashed' ? '6 3' :
+                          s.lineStyle === 'dotted' ? '2 3' :
+                          undefined
+                        }
+                        yAxis={seriesAxisSide(s.transform ?? 'returns')}
+                      />
+                    )
+                  })}
                   {/* MA overlay lines — rendered above parent series, same axis as parent */}
                   {visibleSeries.flatMap(s =>
                     (s.movingAverages ?? [])
@@ -1738,7 +1781,7 @@ export function GraphTab(): JSX.Element {
                       {...(dragHandlers as Record<string, unknown>)}
                       className="flex flex-col justify-center rounded-md border bg-card shadow-sm select-none list-none transition-colors duration-150"
                       style={{
-                        borderColor: isSelected ? 'hsl(var(--foreground) / 0.6)' : 'hsl(var(--border) / 0.45)',
+                        borderColor: isSelected ? 'color-mix(in srgb, var(--foreground) 60%, transparent)' : 'color-mix(in srgb, var(--border) 45%, transparent)',
                         opacity: isBeingDragged ? 0.4 : (isVisible ? 1 : 0.45),
                         minHeight: chipMinHeight,
                       }}
@@ -2029,7 +2072,7 @@ export function GraphTab(): JSX.Element {
               exit={{ opacity: 0, y: -10, scale: 0.95 }}
               transition={{ duration: 0.2, ease: 'easeOut' }}
               style={{ position: 'fixed', left: rebaseMenu.x, top: rebaseMenu.y, zIndex: 600 }}
-              className="min-w-[11rem] overflow-hidden rounded-md bg-slate-100 dark:bg-zinc-900 border-2 border-slate-200 dark:border-zinc-800 shadow-lg"
+              className="min-w-[11rem] overflow-hidden rounded-md bg-muted border-2 border-border shadow-lg"
             >
               <motion.div
                 initial="hidden"
@@ -2042,7 +2085,7 @@ export function GraphTab(): JSX.Element {
                   variants={{ hidden: { opacity: 0, x: -20 }, visible: { opacity: 1, x: 0 } }}
                   className={cn(
                     'w-full px-4 py-2.5 text-left text-sm font-medium',
-                    'text-foreground hover:bg-slate-200 dark:hover:bg-zinc-800',
+                    'text-foreground hover:bg-accent',
                     'transition-colors',
                   )}
                 >
@@ -2055,7 +2098,7 @@ export function GraphTab(): JSX.Element {
                     variants={{ hidden: { opacity: 0, x: -20 }, visible: { opacity: 1, x: 0 } }}
                     className={cn(
                       'w-full px-4 py-2.5 text-left text-sm font-medium',
-                      'text-foreground hover:bg-slate-200 dark:hover:bg-zinc-800',
+                      'text-foreground hover:bg-accent',
                       'transition-colors',
                     )}
                   >
