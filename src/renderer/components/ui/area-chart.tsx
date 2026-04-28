@@ -770,7 +770,7 @@ export function YAxisRight({ numTicks = 4, leftOrigin = 0, formatValue }: YAxisR
       Math.max(...(yScaleRight.range() as number[])),
     ]
 
-    return leftTicks
+    const projected = leftTicks
       .map(leftVal => {
         const yInner = yScale(leftVal) ?? 0           // inner-chart y for this grid line
         // Only show labels within the right scale's rendered pixel range
@@ -780,6 +780,20 @@ export function YAxisRight({ numTicks = 4, leftOrigin = 0, formatValue }: YAxisR
         return { label, y: yInner + margin.top }
       })
       .filter((t): t is { label: string; y: number } => t !== null)
+
+    // For drawdown right axes (domain max = 0): the origin sits at pixel 0 (chart top),
+    // which no left-axis gridline ever hits due to top padding — add it explicitly.
+    const domainArr = yScaleRight.domain() as [number, number]
+    if (Math.max(domainArr[0], domainArr[1]) === 0) {
+      const originPx = (yScaleRight(0) ?? 0) + margin.top
+      const alreadyCovered = projected.some(t => Math.abs(t.y - originPx) < 6)
+      if (!alreadyCovered) {
+        const label = formatValue ? formatValue(0) : '0'
+        projected.unshift({ label, y: originPx })
+      }
+    }
+
+    return projected
   }, [yScale, yScaleRight, margin.top, numTicks, leftOrigin, formatValue])
 
   if (!container || !yScaleRight) return null
@@ -1351,7 +1365,7 @@ export function Area({
             fill={`url(#${gradientId})`}
             x={(d) => xScale(xAccessor(d)) ?? 0}
             y={getY}
-            y0={fillBaseline === 'top' ? () => activeYScale.range()[1] as number : undefined}
+            y0={fillBaseline === 'top' ? () => (activeYScale(0) as number) : undefined}
             yScale={activeYScale}
           />
         )}

@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion, useMotionValue } from 'motion/react'
-import { Check, ChevronDown, Eye, EyeOff, Plus, Save, X } from 'lucide-react'
+import { ArrowUpRight, Check, ChevronDown, Eye, EyeOff, Plus, Save, X } from 'lucide-react'
 import { useGraphStore } from '../../store/graph'
 import { useAppStore } from '../../store/app'
 import { useGraphManagerStore } from '../../store/graph-manager'
 import { Button } from '../ui/button'
-import { AreaChart, Area, XAxis, YAxis, YAxisRight, Grid, SegmentBackground, SegmentLineFrom, SegmentLineTo, Crosshair, ChartTooltip, OriginLine, BaseLine, originAlignedYTicks } from '../ui/area-chart'
+import { AreaChart, Area, XAxis, YAxis, YAxisRight, Grid, SegmentBackground, SegmentLineFrom, SegmentLineTo, Crosshair, ChartTooltip, OriginLine, BaseLine, niceStep } from '../ui/area-chart'
 import { AddLinePanel } from '../graph/AddLinePanel'
 import { SeriesEditPanel } from '../graph/SeriesEditPanel'
 import { cn } from '../../lib/utils'
@@ -328,7 +328,8 @@ function pivotSeries(series: DataSeries[], intersectOnly = false): Record<string
     const row: Record<string, unknown> = { date: new Date(ts) }
     series.forEach((s, i) => {
       const v = lookups[i].get(ts)
-      row[s.code] = v ?? null
+      // Use id (not code) so duplicate series (same code, different instance) get separate columns.
+      row[s.id] = v ?? null
     })
     for (const [maId, maLookup] of maLookups) {
       row[`__ma__${maId}`] = maLookup.get(ts) ?? null
@@ -375,8 +376,7 @@ function naturalDomain(
 
 /**
  * Like `niceStep` but always rounds UP to ensure `intervals × result ≥ span`.
- * Used to build a right-axis domain that covers the data in exactly N_intervals
- * nice-step intervals so right axis labels are always round numbers.
+ * Used by alignedOriginDomains to build a right-axis domain in exactly N intervals.
  */
 function niceStepCovering(span: number, intervals: number): number {
   if (intervals <= 0 || span <= 0) return 1
@@ -390,35 +390,45 @@ function niceStepCovering(span: number, intervals: number): number {
 }
 
 /**
- * Compute a right-axis domain whose tick values at each left grid-line pixel
- * are guaranteed to be "nice" round numbers.
+ * Compute left and right domains so that `leftOrigin` and `rightOrigin` fall
+ * at exactly the same pixel position in the chart (origin-aligned dual axes).
  *
- * Strategy: count the left tick intervals (N), choose a nice step S for the
- * right data range so that N×S ≥ data span, then snap the domain start to a
- * multiple of S.  The series scale adapts — it may appear zoomed in or out
- * relative to a naive fit — but every axis label is a clean round value.
- *
- * For drawdown data (always ≤ 0) pass `anchorTop = true` to pin the top of
- * the domain at 0 instead of snapping the bottom.
+ * Both axes have N intervals.  Left uses a standard nice step; right uses a
+ * separately chosen nice step that covers its data range on each side of
+ * rightOrigin.  Because both axes have the same fractional origin position
+ * (kBelow / N), the origin grid lines are pixel-perfect aligned.
  */
-function niceRightDomain(
+function alignedOriginDomains(
+  leftNat: [number, number],
   rightNat: [number, number],
-  leftDomain: [number, number],
   leftOrigin: number,
+  rightOrigin: number,
   numTicks = 4,
-  anchorTop = false,
-): [number, number] {
-  const leftTicks = originAlignedYTicks(leftDomain, leftOrigin, numTicks)
-  const N = Math.max(leftTicks.length - 1, 1)
-  const [D_min, D_max] = rightNat
-  const span = D_max - D_min || Math.abs(D_max) || 1
-  const S = niceStepCovering(span, N)
-  if (anchorTop) {
-    // Top is fixed at 0; grow downward by N nice steps
-    return [-(N * S), 0]
+): { leftDomain: [number, number]; rightDomain: [number, number] } {
+  // Choose a nice step that covers the left data range
+  const S_left = niceStep((leftNat[1] - leftNat[0]) / Math.max(numTicks, 1))
+
+  // Count intervals on each side of leftOrigin using ceiling division.
+  // ceil() ensures coverage even when the origin is exactly at the natural boundary.
+  // Minimum 1 on each side so there is always breathing room around the origin,
+  // and so the right domain can represent data on both sides of rightOrigin.
+  const kBelow = Math.max(1, Math.ceil((leftOrigin - leftNat[0]) / S_left))
+  const kAbove = Math.max(1, Math.ceil((leftNat[1] - leftOrigin) / S_left))
+
+  const leftDomain: [number, number] = [leftOrigin - kBelow * S_left, leftOrigin + kAbove * S_left]
+
+  // Right data spans on each side of rightOrigin
+  const belowSpan = Math.max(0, rightOrigin - rightNat[0])
+  const aboveSpan = Math.max(0, rightNat[1] - rightOrigin)
+
+  const sBelow = belowSpan > 0 ? niceStepCovering(belowSpan, kBelow) : 0
+  const sAbove = aboveSpan > 0 ? niceStepCovering(aboveSpan, kAbove) : 0
+  const S_right = Math.max(sBelow, sAbove, 1)
+
+  return {
+    leftDomain,
+    rightDomain: [rightOrigin - kBelow * S_right, rightOrigin + kAbove * S_right] as [number, number],
   }
-  const start = Math.floor(D_min / S) * S
-  return [start, start + N * S]
 }
 
 // ─── BaseDatePicker helpers ────────────────────────────────────────────────────
@@ -725,7 +735,7 @@ function resolveBaseDate(series: DataSeries[], baseInput: string): Date | null {
 }
 
 export function GraphTab(): JSX.Element {
-  const { activeSeries, removeSeries, reorderSeries, toggleSeriesVisibility, updateSeries, rightPanel, setRightPanel, zoomDomain, setZoomDomain, showGrid, setShowGrid, graphTitle, setGraphTitle, savedFilename, setSavedFilename } = useGraphStore()
+  const { activeSeries, addSeries, removeSeries, reorderSeries, toggleSeriesVisibility, updateSeries, rightPanel, setRightPanel, zoomDomain, setZoomDomain, showGrid, setShowGrid, graphTitle, setGraphTitle, savedFilename, setSavedFilename } = useGraphStore()
   const activeTab           = useAppStore((s) => s.activeTab)
   const chartMaxWidth       = useAppStore((s) => s.chartMaxWidth)
   const setChartMaxWidth    = useAppStore((s) => s.setChartMaxWidth)
@@ -848,11 +858,21 @@ export function GraphTab(): JSX.Element {
   }, [activeSeries, reorderSeries])
 
   // ── Uniform chip height ────────────────────────────────────────────────────
-  const maxMACount = useMemo(() =>
-    activeSeries.reduce((m, s) => Math.max(m, (s.movingAverages ?? []).length), 0),
-  [activeSeries])
-  // 36px base (series row) + 22px per MA row
-  const chipMinHeight = maxMACount > 0 ? 36 + maxMACount * 22 : undefined
+  // 36px base series row + 14px per sub-label (time shift / multiplier) + 22px per MA row.
+  // Computed as the max across ALL chips so every chip in the legend row is the same height.
+  const chipMinHeight = useMemo(() => {
+    if (activeSeries.length === 0) return undefined
+    let maxH = 0
+    for (const s of activeSeries) {
+      const maCount = (s.movingAverages ?? []).length
+      const subLabels =
+        ((s.timeShift != null && s.timeShift !== 0) ? 1 : 0) +
+        ((s.multiplier != null && s.multiplier !== 1) ? 1 : 0)
+      const h = 36 + subLabels * 14 + maCount * 22
+      maxH = Math.max(maxH, h)
+    }
+    return maxH > 36 ? maxH : undefined
+  }, [activeSeries])
 
   // Press 'g' to toggle gridlines, 't' to toggle the tooltip price label.
   useEffect(() => {
@@ -986,13 +1006,14 @@ export function GraphTab(): JSX.Element {
       }
     }
 
-    // Group by transform type
+    // Group by transform type (skip promoted derived series — handled below)
     const raw: DataSeries[] = []
     const levelCumGroups = new Map<string, DataSeries[]>()   // key = cumBaseInput (level series)
     const growthCumGroups = new Map<string, DataSeries[]>()  // key = cumMethod:cumBaseInput (growth series)
     const ddSeries: DataSeries[] = []
 
     for (const s of activeSeries) {
+      if (s.derivedCalc) continue  // promoted overlays bypass normal transforms
       const t = s.transform ?? 'returns'
       if (t === 'returns') raw.push(s)
       else if (t === 'drawdown') ddSeries.push(s)
@@ -1027,23 +1048,98 @@ export function GraphTab(): JSX.Element {
     // Apply drawdown (independent intersection dates within dd group)
     const ddResults = ddSeries.length > 0 ? applyDrawdown(ddSeries) : []
 
-    // Merge back in original order, then apply any per-series time shift
+    // Merge back in original order
     const resultMap = new Map<string, DataSeries>()
     for (const s of [...raw, ...levelCumResults, ...cumResults, ...ddResults]) resultMap.set(s.id, s)
+
+    // Promoted derived series: recompute points from originalPoints + derivedCalc config
+    for (const s of activeSeries) {
+      if (!s.derivedCalc) continue
+      const pts = computeMA(s.originalPoints, s.derivedCalc.type === 'ma-centered' ? 'centered' : s.derivedCalc.type === 'ma-rolling' ? 'rolling' : 'rolling-cum-return', s.derivedCalc.window)
+      resultMap.set(s.id, { ...s, points: pts.length > 0 ? pts : s.originalPoints })
+    }
+
     return activeSeries.map(s => {
-      const transformed = resultMap.get(s.id) ?? s
-      if (!transformed.timeShift) return transformed
-      const shiftedPoints = computeTimeShift(transformed.points, transformed.timeShift, transformed.data_freq)
-      const newMAs = (transformed.movingAverages ?? []).map(ma => ({
-        ...ma,
-        points: computeMA(shiftedPoints, ma.type, ma.window),
-      }))
-      return { ...transformed, points: shiftedPoints, movingAverages: newMAs }
+      let cur = resultMap.get(s.id) ?? s
+
+      // Apply time shift
+      if (cur.timeShift) {
+        const shiftedPoints = computeTimeShift(cur.points, cur.timeShift, cur.data_freq)
+        const newMAs = (cur.movingAverages ?? []).map(ma => ({
+          ...ma,
+          points: computeMA(shiftedPoints, ma.type, ma.window),
+        }))
+        cur = { ...cur, points: shiftedPoints, movingAverages: newMAs }
+      }
+
+      // Apply multiplier (after all other transforms) — scale both parent points and overlay points
+      if (cur.multiplier != null && cur.multiplier !== 1) {
+        const m = cur.multiplier
+        const scaledPts = cur.points.map(p => ({ ...p, value: p.value * m }))
+        const scaledMAs = (cur.movingAverages ?? []).map(ma => ({
+          ...ma,
+          points: ma.points.map(p => ({ ...p, value: p.value * m })),
+        }))
+        cur = { ...cur, points: scaledPts, movingAverages: scaledMAs }
+      }
+
+      return cur
     })
   }, [activeSeries, alwaysCommonDates])
 
+  // ── Promote overlay to standalone series ─────────────────────────────────
+  const handlePromoteCalc = useCallback((parentSeriesId: string, maId: string) => {
+    const parentDisplay = displaySeries.find(s => s.id === parentSeriesId)
+    const parentStore   = activeSeries.find(s => s.id === parentSeriesId)
+    if (!parentDisplay || !parentStore) return
+
+    const ma = (parentStore.movingAverages ?? []).find(m => m.id === maId)
+    if (!ma) return
+
+    const typeName =
+      ma.type === 'rolling-cum-return' ? 'Roll. Cum. Return' :
+      ma.type === 'rolling'            ? 'MA Rolling' :
+                                         'MA Centered'
+    const newName = `${typeName} (${ma.window}) - ${parentStore.name}`
+    const newCode = newName.toUpperCase().replace(/[^A-Z0-9_]/g, '_').replace(/_+/g, '_')
+
+    const derivedType = ma.type === 'centered'          ? 'ma-centered'         as const :
+                        ma.type === 'rolling'            ? 'ma-rolling'          as const :
+                                                           'rolling-cum-return'  as const
+
+    const promoted: DataSeries = {
+      id: crypto.randomUUID(),
+      name: newName,
+      code: newCode,
+      description: '',
+      source: 'memory',
+      data_freq: parentStore.data_freq,
+      originalPoints: parentDisplay.points.map(p => ({ ...p })),
+      points: ma.points.length > 0 ? ma.points.map(p => ({ ...p })) : parentDisplay.points.map(p => ({ ...p })),
+      color: ma.color ?? parentStore.color,
+      colorIndex: activeSeries.length,
+      lineStyle: ma.lineStyle ?? 'dotted',
+      lineWidth: ma.lineWidth ?? 1,
+      visible: ma.visible !== false,
+      transform: parentStore.transform ?? 'returns',
+      cumMethod: parentStore.cumMethod,
+      cumBaseInput: parentStore.cumBaseInput,
+      derivedCalc: { type: derivedType, window: ma.window },
+    }
+
+    addSeries(promoted)
+    updateSeries(parentSeriesId, {
+      movingAverages: (parentStore.movingAverages ?? []).filter(m => m.id !== maId),
+    })
+  }, [displaySeries, activeSeries, addSeries, updateSeries])
+
   const visibleSeries = useMemo(() => displaySeries.filter(s => s.visible !== false), [displaySeries])
-  const pivoted = useMemo(() => pivotSeries(visibleSeries, alwaysCommonDates), [visibleSeries, alwaysCommonDates])
+  // Series that contribute visible content: either the series itself is visible, or it has visible MAs.
+  const chartSeries = useMemo(() => displaySeries.filter(s =>
+    s.visible !== false || (s.movingAverages ?? []).some(ma => ma.visible !== false)
+  ), [displaySeries])
+  // Pivot chartSeries so MA data from hidden parents is available in the chart.
+  const pivoted = useMemo(() => pivotSeries(chartSeries, alwaysCommonDates), [chartSeries, alwaysCommonDates])
 
   // Check if any *visible* series uses a specific transform (hidden series don't affect axis layout)
   const hasCumulative = visibleSeries.some(s => (s.transform ?? 'returns') === 'cumulative')
@@ -1051,21 +1147,22 @@ export function GraphTab(): JSX.Element {
   const hasReturns = visibleSeries.some(s => (s.transform ?? 'returns') === 'returns')
 
   // ── Axis assignment ──────────────────────────────────────────────────────────
-  // Rules: index always left, drawdown always right when not alone,
-  //        returns goes right when index is present, left otherwise.
+  // Rules (per the 7-case spec):
+  //   Index (cumulative) always goes left.
+  //   When Index is present: all other types (Returns, Drawdown) go right.
+  //   When Return + DD (no Index): Returns go left, Drawdown goes right (up to 50% overlay).
+  //   When DD is alone: everything goes left (no right axis).
   const leftAxisMode: 'index' | 'returns' | 'drawdown' =
     hasCumulative ? 'index' : hasReturns ? 'returns' : 'drawdown'
 
   const rightAxisMode: 'returns' | 'drawdown' | null =
-    hasCumulative && hasReturns ? 'returns' :
-    (hasCumulative || hasReturns) && hasDrawdown ? 'drawdown' :
+    (!hasCumulative && hasReturns && hasDrawdown) ? 'drawdown' :  // Return + DD → DD right (case 6)
+    !hasCumulative ? null :          // DD alone → no right axis
+    hasReturns   ? 'returns' :       // Returns (± Drawdown) on right  (cases 5, 7)
+    hasDrawdown  ? 'drawdown' :      // Drawdown only on right          (case 4)
     null
 
   const hasRightAxis = rightAxisMode !== null
-
-  // When drawdown is the right axis, it only occupies the top 30% of the chart
-  const drawdownIsRight = rightAxisMode === 'drawdown'
-  const yRightPixelFraction = drawdownIsRight ? 0.3 : 1
 
   // isMixed: true when more than one transform type is present (used for badge display)
   const isMixed = [hasCumulative, hasDrawdown, hasReturns].filter(Boolean).length > 1
@@ -1073,8 +1170,8 @@ export function GraphTab(): JSX.Element {
   // ── Per-series axis assignment ───────────────────────────────────────────────
   const seriesAxisSide = useCallback((t: string): 'left' | 'right' => {
     if (t === 'cumulative') return 'left'
-    if (t === 'drawdown') return (hasCumulative || hasReturns) ? 'right' : 'left'
-    // returns
+    // Drawdown goes right whenever any non-DD series is present (with or without Index)
+    if (t === 'drawdown' && (hasCumulative || hasReturns)) return 'right'
     return hasCumulative ? 'right' : 'left'
   }, [hasCumulative, hasReturns])
 
@@ -1088,9 +1185,18 @@ export function GraphTab(): JSX.Element {
   }, [visibleSeries])
 
   // ── Y-axis domain computation ────────────────────────────────────────────────
+  // Implements the 7-case spec:
+  //  1  Drawdown only          left: origin=0,   top    (0 pinned at top)
+  //  2  Index only             left: origin=100, bottom (100 pinned at bottom)
+  //  3  Return only            left: origin=0,   auto   (natural domain)
+  //  4  Drawdown + Index       left: origin=100, bottom;  right: origin=0, top (up to 50% overlay)
+  //  5  Index + Return         left: origin=100, aligned; right: origin=0, auto
+  //  6  Drawdown + Return      left: origin=0,   auto;    right: origin=0, top (up to 50% overlay)
+  //  7  Drawdown + Index + Ret left: origin=100, aligned; right: origin=0, auto
   const { yDomainLeft, yDomainRight } = useMemo(() => {
-    const leftSeries = visibleSeries.filter(s => seriesAxisSide(s.transform ?? 'returns') === 'left')
-    const rightSeries = visibleSeries.filter(s => seriesAxisSide(s.transform ?? 'returns') === 'right')
+    const none = { yDomainLeft: undefined, yDomainRight: undefined } as const
+    const leftSeries = chartSeries.filter(s => seriesAxisSide(s.transform ?? 'returns') === 'left')
+    const rightSeries = chartSeries.filter(s => seriesAxisSide(s.transform ?? 'returns') === 'right')
 
     // When yFitToZoom is on, restrict domain to the visible x-window only.
     const filter = (yFitToZoom && zoomDomain) ? zoomDomain : null
@@ -1098,32 +1204,51 @@ export function GraphTab(): JSX.Element {
     const leftNat = naturalDomain(leftSeries, 0.1, filter)
     const rightNat = rightSeries.length > 0 ? naturalDomain(rightSeries, 0.1, filter) : null
 
-    if (!leftNat) return { yDomainLeft: undefined, yDomainRight: undefined }
+    if (!leftNat) return none
 
+    // Case 1: Drawdown only — pin origin (0) at top of chart
     if (leftAxisMode === 'drawdown') {
-      // Drawdown-only: clamp max to 0, extra top padding for the 0% label
       const span = Math.abs(leftNat[0] - leftNat[1]) || 100
       return { yDomainLeft: [leftNat[0] - span * 0.15, 0] as [number, number], yDomainRight: undefined }
     }
 
-    if (rightAxisMode === 'returns' && rightNat) {
-      // Index (left) + Returns (right): compute a nice right domain with the same
-      // number of intervals as the left axis so labels are always round numbers.
-      const leftOrigin = 100
-      const rightDomain = niceRightDomain(rightNat, leftNat, leftOrigin)
-      return { yDomainLeft: leftNat, yDomainRight: rightDomain }
+    // Cases 2 & 3: no right axis
+    if (!hasRightAxis) {
+      if (leftAxisMode === 'index') {
+        // Case 2: Index only — pin origin (100) at bottom of chart (no padding below 100)
+        const rawBounds = naturalDomain(leftSeries, 0, filter)!
+        const domainMin = Math.min(rawBounds[0], 100)
+        return { yDomainLeft: [domainMin, leftNat[1]] as [number, number], yDomainRight: undefined }
+      }
+      // Case 3 (Return only): natural domain, origin=0 floats
+      return { yDomainLeft: leftNat, yDomainRight: undefined }
     }
 
+    // Cases 4 & 6: Drawdown on right axis — 0 pinned at top, full chart height, shared gridlines.
+    // Case 4 (Index + DD): pin index origin (100) at bottom of left axis.
+    // Case 6 (Return + DD): natural domain for returns on left.
     if (rightAxisMode === 'drawdown' && rightNat) {
-      // Index/Returns (left) + Drawdown (right, top 30%).
-      // Anchor the top at 0 and grow downward in nice steps matching the left interval count.
-      const leftOrigin = leftAxisMode === 'index' ? 100 : 0
-      const ddDomain = niceRightDomain(rightNat, leftNat, leftOrigin, 4, true)
-      return { yDomainLeft: leftNat, yDomainRight: ddDomain }
+      let leftDomain: [number, number]
+      if (hasCumulative) {
+        const rawBounds = naturalDomain(leftSeries, 0, filter)!
+        leftDomain = [Math.min(rawBounds[0], 100), leftNat[1]]
+      } else {
+        leftDomain = leftNat
+      }
+      // DD domain: 0 at top, 15% padding below max drawdown
+      const ddSpan = Math.abs(rightNat[0])
+      const ddDomain: [number, number] = [rightNat[0] - ddSpan * 0.15, 0]
+      return { yDomainLeft: leftDomain, yDomainRight: ddDomain }
+    }
+
+    // Cases 5 & 7: Index + Returns (± Drawdown) — align origins (100 left = 0 right)
+    if (rightAxisMode === 'returns' && rightNat) {
+      const { leftDomain, rightDomain } = alignedOriginDomains(leftNat, rightNat, 100, 0)
+      return { yDomainLeft: leftDomain, yDomainRight: rightDomain }
     }
 
     return { yDomainLeft: leftNat, yDomainRight: undefined }
-  }, [visibleSeries, leftAxisMode, rightAxisMode, seriesAxisSide, yFitToZoom, zoomDomain])
+  }, [chartSeries, leftAxisMode, rightAxisMode, hasRightAxis, seriesAxisSide, yFitToZoom, zoomDomain])
 
   // Build a lookup from data-key (series code or __ma__<id>) to display info
   // so the ChartTooltip rows callback can resolve names, colours, and styles.
@@ -1131,7 +1256,8 @@ export function GraphTab(): JSX.Element {
     const m = new Map<string, { name: string; color: string; lineStyle?: string; lineWidth?: number; transform: SeriesTransform }>()
     for (const s of displaySeries) {
       const transform: SeriesTransform = s.transform ?? 'returns'
-      m.set(s.code, { name: s.name, color: s.color ?? '#3b82f6', lineStyle: s.lineStyle, lineWidth: s.lineWidth, transform })
+      // Key by id so duplicate series (same code) each get their own entry.
+      m.set(s.id, { name: s.name, color: s.color ?? '#3b82f6', lineStyle: s.lineStyle, lineWidth: s.lineWidth, transform })
       for (const ma of s.movingAverages ?? []) {
         m.set(`__ma__${ma.id}`, {
           name: `${s.name} MA(${ma.window})`,
@@ -1147,13 +1273,13 @@ export function GraphTab(): JSX.Element {
 
   const handleExportCSV = useCallback(async () => {
     setExportOpen(false)
-    const codes = visibleSeries.map(s => s.code)
+    const ids = visibleSeries.map(s => s.id)
     const names = visibleSeries.map(s => s.name)
     const header = ['Date', ...names].map(v => `"${v}"`).join(',')
     const rows = pivoted.map(row => {
       const date = (row.date as Date).toISOString().slice(0, 10)
-      const vals = codes.map(code => {
-        const v = row[code]
+      const vals = ids.map(id => {
+        const v = row[id]
         return typeof v === 'number' ? v.toString() : ''
       })
       return [date, ...vals].join(',')
@@ -1178,16 +1304,15 @@ export function GraphTab(): JSX.Element {
   }), [activeSeries, zoomDomain, showGrid, graphTitle])
 
   // ── Dirty tracking ─────────────────────────────────────────────────────────
-  // Derived comparison: compute a fingerprint of meaningful graph state
-  // (excluding colors — those are palette-dependent and get reassigned on tab
-  // switch by the recolor effect).  Compare against a snapshot taken at save time.
-  // No useEffect, no race conditions with mount/recolor cascades.
+  // Derived comparison: compute a fingerprint of meaningful graph state.
+  // Includes colorIndex so manual color changes trigger save.
+  // Excludes the resolved `color` hex — that's palette-dependent and reassigned on tab switch.
   const graphStateKey = useMemo(() => {
     const seriesKey = activeSeries.map(s => {
       const maKey = (s.movingAverages ?? []).map(m =>
         `${m.id}:${m.type}:${m.window}:${m.visible}:${m.lineStyle}:${m.lineWidth}`
       ).join('|')
-      return `${s.id}:${s.visible}:${s.lineStyle}:${s.lineWidth}:${s.transform ?? 'returns'}:${s.cumMethod ?? ''}:${s.cumBaseInput ?? ''}:${maKey}`
+      return `${s.id}:${s.visible}:${s.lineStyle}:${s.lineWidth}:${s.colorIndex ?? ''}:${s.transform ?? 'returns'}:${s.cumMethod ?? ''}:${s.cumBaseInput ?? ''}:${maKey}`
     }).join(';')
     const zoomKey = zoomDomain
       ? `${zoomDomain.start.getTime()}-${zoomDomain.end.getTime()}`
@@ -1247,15 +1372,13 @@ export function GraphTab(): JSX.Element {
     await ipc.graph.export(buildSavedGraph())
   }, [buildSavedGraph])
 
-  // Tooltip display order: series codes first (in legend order), then MAs
+  // Tooltip display order: visible series first, then all visible MAs (including from hidden parents)
   const tooltipOrder = useMemo(() => {
     const order: string[] = []
     for (const s of displaySeries) {
-      if (s.visible !== false) {
-        order.push(s.code)
-        for (const ma of s.movingAverages ?? []) {
-          if (ma.visible !== false) order.push(`__ma__${ma.id}`)
-        }
+      if (s.visible !== false) order.push(s.id)
+      for (const ma of s.movingAverages ?? []) {
+        if (ma.visible !== false) order.push(`__ma__${ma.id}`)
       }
     }
     return order
@@ -1516,7 +1639,7 @@ export function GraphTab(): JSX.Element {
       const raw = nearest[key]
       if (typeof raw !== 'number') continue
       // Determine formatting from per-series transform
-      const seriesObj = activeSeries.find(s => s.code === key || (s.movingAverages ?? []).some(m => `__ma__${m.id}` === key))
+      const seriesObj = activeSeries.find(s => s.id === key || (s.movingAverages ?? []).some(m => `__ma__${m.id}` === key))
       const isCum = (seriesObj?.transform ?? 'returns') === 'cumulative'
       const suffix = isCum ? '' : '%'
       const decimals = isCum ? 1 : 2
@@ -1689,7 +1812,6 @@ export function GraphTab(): JSX.Element {
                   margin={{ right: hasRightAxis ? 56 : 24 }}
                   yDomainLeft={yDomainLeft}
                   yDomainRight={yDomainRight}
-                  yRightPixelFraction={yRightPixelFraction}
                 >
                   {showGrid && <Grid origin={leftAxisMode === 'index' ? 100 : 0} />}
                   <XAxis />
@@ -1782,7 +1904,7 @@ export function GraphTab(): JSX.Element {
                     return (
                       <Area
                         key={s.id}
-                        dataKey={s.code}
+                        dataKey={s.id}
                         stroke={s.color ?? '#3b82f6'}
                         fill={s.color ?? '#3b82f6'}
                         fillOpacity={isDD ? 0.35 : 0}
@@ -1797,8 +1919,9 @@ export function GraphTab(): JSX.Element {
                       />
                     )
                   })}
-                  {/* MA overlay lines — rendered above parent series, same axis as parent */}
-                  {visibleSeries.flatMap(s =>
+                  {/* MA overlay lines — rendered above parent series, same axis as parent.
+                      Iterate chartSeries so MAs of hidden parents still render. */}
+                  {chartSeries.flatMap(s =>
                     (s.movingAverages ?? [])
                       .filter(ma => ma.visible !== false)
                       .map(ma => (
@@ -1890,6 +2013,11 @@ export function GraphTab(): JSX.Element {
                               {s.timeShift > 0 ? `Shifted +${s.timeShift} periods` : `Shifted ${s.timeShift} periods`}
                             </span>
                           )}
+                          {s.multiplier != null && s.multiplier !== 1 && (
+                            <span className="text-[10px] text-muted-foreground/60 leading-tight">
+                              ×{parseFloat(s.multiplier.toPrecision(6))}
+                            </span>
+                          )}
                         </div>
                         {/* Transform badge — shown whenever any mix of transforms is present */}
                         {isMixed && (
@@ -1962,7 +2090,9 @@ export function GraphTab(): JSX.Element {
                                   'flex-1 text-muted-foreground',
                                   !maVisible && 'opacity-45',
                                 )}>
-                                  MA – {ma.type === 'centered' ? 'Centered' : 'Rolling'} ({ma.window})
+                                  {ma.type === 'rolling-cum-return'
+                                    ? `RCR (${ma.window})`
+                                    : `MA – ${ma.type === 'centered' ? 'Centered' : 'Rolling'} (${ma.window})`}
                                 </span>
                                 <button
                                   type="button"
@@ -1975,6 +2105,15 @@ export function GraphTab(): JSX.Element {
                                   className="text-muted-foreground/50 hover:text-foreground transition-colors"
                                 >
                                   {maVisible ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
+                                </button>
+                                <button
+                                  type="button"
+                                  aria-label="Promote to standalone series"
+                                  title="Make this its own series"
+                                  onClick={(e) => { e.stopPropagation(); handlePromoteCalc(s.id, ma.id) }}
+                                  className="text-muted-foreground/40 hover:text-primary transition-colors"
+                                >
+                                  <ArrowUpRight className="h-3 w-3" />
                                 </button>
                                 <button
                                   type="button"
@@ -2025,6 +2164,7 @@ export function GraphTab(): JSX.Element {
                   onTabChange={setSelectedSeriesTab}
                   onClose={() => setSelectedSeriesId(null)}
                   onUpdate={(patch) => updateSeries(selectedSeries.id, patch)}
+                  onPromoteCalc={(maId) => handlePromoteCalc(selectedSeries.id, maId)}
                 />
               </div>
             )}
@@ -2055,6 +2195,7 @@ export function GraphTab(): JSX.Element {
                 onTabChange={setSelectedSeriesTab}
                 onClose={() => setSelectedSeriesId(null)}
                 onUpdate={(patch) => updateSeries(selectedSeries.id, patch)}
+                onPromoteCalc={(maId) => handlePromoteCalc(selectedSeries.id, maId)}
               />
             </div>
           )}

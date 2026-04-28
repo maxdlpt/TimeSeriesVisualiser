@@ -22,14 +22,25 @@ export type CumMethod = 'geometric' | 'arithmetic'
  */
 export interface MAComponent {
   id: string
-  type: 'centered' | 'rolling'
+  /** 'rolling-cum-return': rolling N-period geometric cumulative return overlay. */
+  type: 'centered' | 'rolling' | 'rolling-cum-return'
   window: number       // number of periods (days / months / quarters / years)
   color?: string
   visible?: boolean    // true when undefined
-  hiddenWithParent?: boolean  // true when hidden because parent series was hidden; cleared on parent show
   lineStyle?: 'solid' | 'dashed' | 'dotted'  // defaults to 'dotted'
   lineWidth?: number   // stroke width in px; defaults to 1
   points: DataPoint[]  // computed; recomputed when a transform is applied
+}
+
+/**
+ * Metadata for a "promoted" overlay — an MA or Rolling Cumulative Return that
+ * was detached from its parent and made into a standalone series.
+ * The series' `originalPoints` hold the parent's display-points at promotion
+ * time so the window can be changed without the parent being present.
+ */
+export interface DerivedCalcConfig {
+  type: 'ma-rolling' | 'ma-centered' | 'rolling-cum-return'
+  window: number
 }
 
 
@@ -54,11 +65,18 @@ export interface DataSeries {
   movingAverages?: MAComponent[]
   /** Shift the series N periods along the x-axis. Positive = forward (lag), negative = backward (lead). */
   timeShift?: number
+  /** Scale all display values by this constant (applied after all other transforms). */
+  multiplier?: number
   transform?: SeriesTransform    // per-series display transform; defaults to 'returns' (raw)
   cumMethod?: CumMethod          // only when transform === 'cumulative'; defaults to 'geometric'
   cumBaseInput?: string           // only when transform === 'cumulative'; '' = first date
   dataType?: DataType       // undefined treated as 'growth' for backward compat
   startingValue?: number    // only meaningful when dataType === 'level'
+  /**
+   * Present only on promoted overlay series. Tells GraphTab to recompute
+   * `points` from `originalPoints` using this config, bypassing normal transforms.
+   */
+  derivedCalc?: DerivedCalcConfig
 }
 
 /**
@@ -109,7 +127,7 @@ export interface CustomPaletteEntry {
 /** A moving-average overlay serialised for session storage (Date → ISO string). */
 export interface SessionMA {
   id: string
-  type: 'centered' | 'rolling'
+  type: 'centered' | 'rolling' | 'rolling-cum-return'
   window: number
   color?: string
   visible?: boolean
@@ -139,11 +157,13 @@ export interface SessionSeries {
   lineWidth?: number
   movingAverages?: SessionMA[]
   timeShift?: number
+  multiplier?: number
   transform?: SeriesTransform
   cumMethod?: CumMethod
   cumBaseInput?: string
   dataType?: DataType
   startingValue?: number
+  derivedCalc?: DerivedCalcConfig
   points: { date: string; value: number }[]
   originalPoints: { date: string; value: number }[]
 }

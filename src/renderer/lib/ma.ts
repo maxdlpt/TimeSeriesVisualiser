@@ -80,15 +80,36 @@ export function computeTimeShift(points: DataPoint[], n: number, freq?: DataFreq
 }
 
 /**
- * Compute a moving average over a points array.
+ * Rolling N-period geometric cumulative return.
+ *
+ * At each point i, compounds the returns from i−window+1 through i:
+ *   ((1 + r[i-N+1]/100) × … × (1 + r[i]/100) − 1) × 100
+ *
+ * Input values are assumed to be period returns in percent (e.g. 2.5 = +2.5%).
+ * Output length: max(0, input.length − window + 1) — same trimming as rolling MA.
+ */
+export function computeRollingCumReturn(points: DataPoint[], window: number): DataPoint[] {
+  if (points.length < window) return []
+  const result: DataPoint[] = []
+  for (let i = window - 1; i < points.length; i++) {
+    let product = 1
+    for (let j = i - window + 1; j <= i; j++) product *= (1 + points[j].value / 100)
+    result.push({ date: points[i].date, value: (product - 1) * 100 })
+  }
+  return result
+}
+
+/**
+ * Compute a moving average (or rolling cum. return) over a points array.
  * Returns an empty array if the window is larger than the available data.
  */
 export function computeMA(
   points: DataPoint[],
-  type: 'centered' | 'rolling',
+  type: 'centered' | 'rolling' | 'rolling-cum-return',
   window: number,
 ): DataPoint[] {
   if (points.length < window) return []
+  if (type === 'rolling-cum-return') return computeRollingCumReturn(points, window)
   return type === 'rolling'
     ? computeRollingMA(points, window)
     : computeCenteredMA(points, window)

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { AlertCircle, Check, ChevronDown, ChevronUp, Database, GripVertical, Plus, Save, X } from 'lucide-react'
+import { AlertCircle, ArrowUpRight, Check, ChevronDown, ChevronUp, Database, GripVertical, Plus, Save, X } from 'lucide-react'
 import { AnimatePresence, Reorder, motion, useDragControls } from 'motion/react'
 import { useAppStore } from '../../store/app'
 import { useDBStore } from '../../store/db'
@@ -8,7 +8,7 @@ import { isDarkTheme } from '../../lib/theme'
 import { computeMA } from '../../lib/ma'
 import { ipc } from '../../lib/ipc'
 import { cn } from '../../lib/utils'
-import type { DataFreq, DataPoint, DataSeries, ExternalDB, MAComponent } from '../../../shared/types'
+import type { DataFreq, DataPoint, DataSeries, DerivedCalcConfig, ExternalDB, MAComponent } from '../../../shared/types'
 
 // ─── usePressAndHold ─────────────────────────────────────────────────────────
 // Fires `action` immediately on mousedown, then again repeatedly after an
@@ -78,12 +78,14 @@ interface MAToastProps {
   seriesFreq?: DataFreq
   onChange: (patch: Partial<MAComponent>) => void
   onRemove: () => void
+  onPromote: () => void
 }
 
-function MAToast({ ma, seriesPoints, seriesFreq, onChange, onRemove }: MAToastProps) {
+function MAToast({ ma, seriesPoints, seriesFreq, onChange, onRemove, onPromote }: MAToastProps) {
   const controls     = useDragControls()
   const [typeOpen, setTypeOpen] = useState(false)
   const dropdownRef  = useRef<HTMLDivElement>(null)
+  const isRCR = ma.type === 'rolling-cum-return'
 
   const decHandlers = usePressAndHold(() => handleWindowChange(ma.window - 1))
   const incHandlers = usePressAndHold(() => handleWindowChange(ma.window + 1))
@@ -138,58 +140,62 @@ function MAToast({ ma, seriesPoints, seriesFreq, onChange, onRemove }: MAToastPr
         style={{ backgroundColor: ma.color ?? '#888' }}
       />
 
-      {/* ── Type dropdown ─────────────────────────────────────────────────── */}
-      <div ref={dropdownRef} className="relative shrink-0">
-        <button
-          type="button"
-          onClick={() => setTypeOpen((o) => !o)}
-          className="flex items-center gap-0.5 text-xs font-medium text-foreground hover:text-muted-foreground transition-colors"
-        >
-          <span className="capitalize">{ma.type}</span>
-          <motion.div
-            animate={{ rotate: typeOpen ? 180 : 0 }}
-            transition={{ duration: 0.15, ease: 'easeInOut' }}
+      {/* ── Type label / dropdown ─────────────────────────────────────────── */}
+      {isRCR ? (
+        <span className="text-xs font-medium text-foreground shrink-0">Roll. Cum. Ret.</span>
+      ) : (
+        <div ref={dropdownRef} className="relative shrink-0">
+          <button
+            type="button"
+            onClick={() => setTypeOpen((o) => !o)}
+            className="flex items-center gap-0.5 text-xs font-medium text-foreground hover:text-muted-foreground transition-colors"
           >
-            <ChevronDown className="h-3 w-3" />
-          </motion.div>
-        </button>
-
-        <AnimatePresence>
-          {typeOpen && (
+            <span className="capitalize">{ma.type}</span>
             <motion.div
-              initial={{ opacity: 0, y: -6, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -6, scale: 0.95 }}
-              transition={{ duration: 0.15, ease: 'easeOut' }}
-              className="absolute top-[calc(100%+5px)] left-0 z-50 min-w-[7rem] overflow-hidden rounded-md border-2 border-border bg-muted shadow-lg"
+              animate={{ rotate: typeOpen ? 180 : 0 }}
+              transition={{ duration: 0.15, ease: 'easeInOut' }}
             >
-              <motion.div
-                initial="hidden"
-                animate="visible"
-                variants={{ visible: { transition: { staggerChildren: 0.04 } } }}
-              >
-                {(['rolling', 'centered'] as const).map((t) => (
-                  <motion.button
-                    key={t}
-                    type="button"
-                    onClick={() => handleTypeChange(t)}
-                    variants={{ hidden: { opacity: 0, x: -12 }, visible: { opacity: 1, x: 0 } }}
-                    className={cn(
-                      'block w-full px-3 py-1.5 text-xs text-left capitalize',
-                      'border-b-2 border-border last:border-b-0',
-                      'bg-card hover:bg-accent',
-                      'transition-colors text-foreground',
-                      ma.type === t && 'font-semibold',
-                    )}
-                  >
-                    {t}
-                  </motion.button>
-                ))}
-              </motion.div>
+              <ChevronDown className="h-3 w-3" />
             </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
+          </button>
+
+          <AnimatePresence>
+            {typeOpen && (
+              <motion.div
+                initial={{ opacity: 0, y: -6, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -6, scale: 0.95 }}
+                transition={{ duration: 0.15, ease: 'easeOut' }}
+                className="absolute top-[calc(100%+5px)] left-0 z-50 min-w-[7rem] overflow-hidden rounded-md border-2 border-border bg-muted shadow-lg"
+              >
+                <motion.div
+                  initial="hidden"
+                  animate="visible"
+                  variants={{ visible: { transition: { staggerChildren: 0.04 } } }}
+                >
+                  {(['rolling', 'centered'] as const).map((t) => (
+                    <motion.button
+                      key={t}
+                      type="button"
+                      onClick={() => handleTypeChange(t)}
+                      variants={{ hidden: { opacity: 0, x: -12 }, visible: { opacity: 1, x: 0 } }}
+                      className={cn(
+                        'block w-full px-3 py-1.5 text-xs text-left capitalize',
+                        'border-b-2 border-border last:border-b-0',
+                        'bg-card hover:bg-accent',
+                        'transition-colors text-foreground',
+                        ma.type === t && 'font-semibold',
+                      )}
+                    >
+                      {t}
+                    </motion.button>
+                  ))}
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      )}
 
       {/* ── Spacer ────────────────────────────────────────────────────────── */}
       <div className="flex-1" />
@@ -223,6 +229,17 @@ function MAToast({ ma, seriesPoints, seriesFreq, onChange, onRemove }: MAToastPr
           <ChevronUp className="h-3 w-3" />
         </button>
       </div>
+
+      {/* ── Promote to series ─────────────────────────────────────────────── */}
+      <button
+        type="button"
+        aria-label="Promote to standalone series"
+        onClick={onPromote}
+        title="Make this its own series"
+        className="shrink-0 text-muted-foreground/40 hover:text-primary transition-colors"
+      >
+        <ArrowUpRight className="h-3.5 w-3.5" />
+      </button>
 
       {/* ── Remove ────────────────────────────────────────────────────────── */}
       <button
@@ -384,12 +401,23 @@ interface Props {
   onTabChange: (t: Tab) => void
   onClose: () => void
   onUpdate: (patch: Partial<DataSeries>) => void
+  /** Called when the user promotes an overlay (MA or RCR) to a standalone series. */
+  onPromoteCalc: (maId: string) => void
 }
 
-export function SeriesEditPanel({ series, placement, activeTab, onTabChange, onClose, onUpdate }: Props) {
+function derivedCalcLabel(type: DerivedCalcConfig['type']): string {
+  if (type === 'rolling-cum-return') return 'Roll. Cum. Return'
+  if (type === 'ma-rolling') return 'MA Rolling'
+  return 'MA Centered'
+}
+
+export function SeriesEditPanel({ series, placement, activeTab, onTabChange, onClose, onUpdate, onPromoteCalc }: Props) {
   const [addingMA, setAddingMA] = useState(false)
   const [maType, setMAType]     = useState<'centered' | 'rolling'>('rolling')
   const [maWindow, setMAWindow] = useState(() => defaultWindow(series.data_freq))
+
+  const [addingRCR, setAddingRCR] = useState(false)
+  const [rcrWindow, setRCRWindow] = useState(() => defaultWindow(series.data_freq))
 
   // ── Save tab state ─────────────────────────────────────────────────────────
   const [saveTargets, setSaveTargets] = useState<Set<string>>(new Set())
@@ -407,6 +435,18 @@ export function SeriesEditPanel({ series, placement, activeTab, onTabChange, onC
 
   const addMADecHandlers = usePressAndHold(() => setMAWindow(w => Math.max(2, w - 1)))
   const addMAIncHandlers = usePressAndHold(() => setMAWindow(w => Math.min(series.points.length, w + 1)))
+
+  const addRCRDecHandlers = usePressAndHold(() => setRCRWindow(w => Math.max(2, w - 1)))
+  const addRCRIncHandlers = usePressAndHold(() => setRCRWindow(w => Math.min(series.points.length, w + 1)))
+
+  const dcDecHandlers = usePressAndHold(() => {
+    if (!series.derivedCalc) return
+    onUpdate({ derivedCalc: { ...series.derivedCalc, window: Math.max(2, series.derivedCalc.window - 1) } })
+  })
+  const dcIncHandlers = usePressAndHold(() => {
+    if (!series.derivedCalc) return
+    onUpdate({ derivedCalc: { ...series.derivedCalc, window: Math.min(series.originalPoints.length, series.derivedCalc.window + 1) } })
+  })
 
   const tsDecHandlers = usePressAndHold(() => onUpdate({ timeShift: (series.timeShift ?? 0) - 1 }))
   const tsIncHandlers = usePressAndHold(() => onUpdate({ timeShift: (series.timeShift ?? 0) + 1 }))
@@ -441,6 +481,25 @@ export function SeriesEditPanel({ series, placement, activeTab, onTabChange, onC
 
     onUpdate({ movingAverages: [...existingMAs, newMA] })
     setAddingMA(false)
+  }
+
+  const handleAddRCR = (): void => {
+    const computed = computeMA(series.points, 'rolling-cum-return', rcrWindow)
+    if (computed.length === 0) return
+
+    const newRCR: MAComponent = {
+      id: crypto.randomUUID(),
+      type: 'rolling-cum-return',
+      window: rcrWindow,
+      color: series.color,
+      lineStyle: 'dashed',
+      lineWidth: 1,
+      visible: true,
+      points: computed,
+    }
+
+    onUpdate({ movingAverages: [...existingMAs, newRCR] })
+    setAddingRCR(false)
   }
 
 
@@ -503,12 +562,12 @@ export function SeriesEditPanel({ series, placement, activeTab, onTabChange, onC
               Colour
             </p>
             <div className="flex w-full justify-between">
-              {paletteColors.map(c => (
+              {paletteColors.map((c, idx) => (
                 <button
                   key={c}
                   type="button"
                   aria-label={`Set colour ${c}`}
-                  onClick={() => onUpdate({ color: c })}
+                  onClick={() => onUpdate({ color: c, colorIndex: idx })}
                   className={cn(
                     'h-6 w-6 rounded-full transition-transform hover:scale-110 focus-visible:outline-none',
                     series.color === c && 'ring-2 ring-offset-2 ring-foreground/60',
@@ -667,8 +726,52 @@ export function SeriesEditPanel({ series, placement, activeTab, onTabChange, onC
       {activeTab === 'calculations' && (
         <div className="flex flex-col gap-4">
 
+          {/* ── Derived Calculation section — only for promoted overlays ─────── */}
+          {series.derivedCalc && (
+            <section className="space-y-2 rounded-lg border border-primary/30 bg-primary/5 p-3.5">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50">
+                Derived — {derivedCalcLabel(series.derivedCalc.type)}
+              </p>
+              <div className="flex items-center gap-2">
+                <div className="flex items-center border border-input rounded-md overflow-hidden bg-background">
+                  <button
+                    type="button"
+                    aria-label="Decrease"
+                    disabled={series.derivedCalc.window <= 2}
+                    className="flex h-8 w-8 items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent transition-colors disabled:opacity-25 disabled:cursor-not-allowed"
+                    {...dcDecHandlers}
+                  >
+                    <ChevronDown className="h-3.5 w-3.5" />
+                  </button>
+                  <input
+                    type="number"
+                    min={2}
+                    max={series.originalPoints.length}
+                    value={series.derivedCalc.window}
+                    onChange={e => {
+                      if (!series.derivedCalc) return
+                      const w = Math.max(2, parseInt(e.target.value) || 2)
+                      onUpdate({ derivedCalc: { ...series.derivedCalc, window: w } })
+                    }}
+                    className="w-12 h-8 text-center text-sm tabular-nums bg-transparent border-0 focus-visible:outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:hidden [&::-webkit-outer-spin-button]:hidden"
+                  />
+                  <button
+                    type="button"
+                    aria-label="Increase"
+                    disabled={series.derivedCalc.window >= series.originalPoints.length}
+                    className="flex h-8 w-8 items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent transition-colors disabled:opacity-25 disabled:cursor-not-allowed"
+                    {...dcIncHandlers}
+                  >
+                    <ChevronUp className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+                <span className="text-xs text-muted-foreground">{freqUnit(series.data_freq)}</span>
+              </div>
+            </section>
+          )}
+
           {/* ── Display As (per-series transform selector) ───────────────── */}
-          <section className="space-y-2">
+          {!series.derivedCalc && <section className="space-y-2">
             <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50">
               Display As
             </p>
@@ -738,13 +841,13 @@ export function SeriesEditPanel({ series, placement, activeTab, onTabChange, onC
                 </motion.div>
               )}
             </AnimatePresence>
-          </section>
+          </section>}
 
-          {/* ── Draggable MA list ─────────────────────────────────────────── */}
+          {/* ── Draggable overlay list (MA + RCR) ─────────────────────────── */}
           {existingMAs.length > 0 && (
             <section className="space-y-2">
               <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50">
-                Moving Averages
+                Overlays
               </p>
               <Reorder.Group
                 axis="y"
@@ -771,13 +874,14 @@ export function SeriesEditPanel({ series, placement, activeTab, onTabChange, onC
                         movingAverages: existingMAs.filter((m) => m.id !== ma.id),
                       })
                     }
+                    onPromote={() => onPromoteCalc(ma.id)}
                   />
                 ))}
               </Reorder.Group>
             </section>
           )}
 
-          {/* ── Add MA ────────────────────────────────────────────────────── */}
+          {/* ── Add Moving Average ────────────────────────────────────────── */}
           {addingMA ? (
             <section className="space-y-4 rounded-lg border border-border/50 p-3.5">
               <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50">
@@ -869,7 +973,7 @@ export function SeriesEditPanel({ series, placement, activeTab, onTabChange, onC
           ) : (
             <button
               type="button"
-              onClick={() => setAddingMA(true)}
+              onClick={() => { setAddingMA(true); setAddingRCR(false) }}
               className="flex items-center justify-center gap-1.5 rounded-md border border-dashed border-border/60 px-3 py-2.5 text-xs text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-colors"
             >
               <Plus className="h-3.5 w-3.5" />
@@ -877,8 +981,126 @@ export function SeriesEditPanel({ series, placement, activeTab, onTabChange, onC
             </button>
           )}
 
+          {/* ── Add Rolling Cumulative Return ─────────────────────────────── */}
+          {addingRCR ? (
+            <section className="space-y-4 rounded-lg border border-border/50 p-3.5">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50">
+                New Rolling Cumulative Return
+              </p>
+              <p className="text-[11px] text-muted-foreground/50 leading-relaxed">
+                Geometric compound of the last N period returns: shows total return over the rolling window.
+              </p>
+
+              {/* Window spinner */}
+              <div className="space-y-2">
+                <p className="text-xs text-muted-foreground">Window</p>
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center border border-input rounded-md overflow-hidden bg-background">
+                    <button
+                      type="button"
+                      aria-label="Decrease"
+                      disabled={rcrWindow <= 2}
+                      className="flex h-8 w-8 items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent transition-colors disabled:opacity-25 disabled:cursor-not-allowed"
+                      {...addRCRDecHandlers}
+                    >
+                      <ChevronDown className="h-3.5 w-3.5" />
+                    </button>
+                    <input
+                      type="number"
+                      min={2}
+                      max={series.points.length}
+                      value={rcrWindow}
+                      onChange={e => setRCRWindow(Math.max(2, parseInt(e.target.value) || 2))}
+                      className="w-12 h-8 text-center text-sm tabular-nums bg-transparent border-0 focus-visible:outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:hidden [&::-webkit-outer-spin-button]:hidden"
+                    />
+                    <button
+                      type="button"
+                      aria-label="Increase"
+                      disabled={rcrWindow >= series.points.length}
+                      className="flex h-8 w-8 items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent transition-colors disabled:opacity-25 disabled:cursor-not-allowed"
+                      {...addRCRIncHandlers}
+                    >
+                      <ChevronUp className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                  <span className="text-xs text-muted-foreground">{freqUnit(series.data_freq)}</span>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setAddingRCR(false)}
+                  className="flex-1 rounded-md border border-border py-1.5 text-xs text-muted-foreground hover:border-foreground/40 hover:text-foreground transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleAddRCR}
+                  disabled={rcrWindow > series.points.length}
+                  className="flex-1 rounded-md bg-foreground text-background py-1.5 text-xs font-medium hover:opacity-80 transition-opacity disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  Add
+                </button>
+              </div>
+            </section>
+          ) : (
+            <button
+              type="button"
+              onClick={() => { setAddingRCR(true); setAddingMA(false) }}
+              className="flex items-center justify-center gap-1.5 rounded-md border border-dashed border-border/60 px-3 py-2.5 text-xs text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-colors"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Add Rolling Cum. Return
+            </button>
+          )}
+
+          {/* ── Multiply by Constant ──────────────────────────────────────── */}
+          {series.multiplier != null ? (
+            <section className="space-y-2 rounded-lg border border-border/50 p-3.5">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50">
+                Multiply by
+              </p>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  defaultValue={series.multiplier}
+                  onBlur={e => {
+                    const v = parseFloat(e.target.value)
+                    if (!isNaN(v)) onUpdate({ multiplier: v })
+                    else e.target.value = String(series.multiplier ?? 1)
+                  }}
+                  onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+                  className="flex-1 h-8 rounded-md border border-input bg-background px-2 text-sm tabular-nums text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                />
+                <button
+                  type="button"
+                  aria-label="Remove multiplier"
+                  onClick={() => onUpdate({ multiplier: undefined })}
+                  className="text-muted-foreground/40 hover:text-destructive transition-colors"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              <p className="text-[11px] text-muted-foreground/50 leading-relaxed">
+                All display values are scaled by this constant after transforms are applied.
+              </p>
+            </section>
+          ) : (
+            <button
+              type="button"
+              onClick={() => onUpdate({ multiplier: 1 })}
+              className="flex items-center justify-center gap-1.5 rounded-md border border-dashed border-border/60 px-3 py-2.5 text-xs text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-colors"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Add Multiplier
+            </button>
+          )}
+
           {/* ── Time Shift ────────────────────────────────────────────────── */}
-          {/* Single time shift — shifts the series itself N periods along x. */}
           {series.timeShift != null ? (
             <section className="space-y-2 rounded-lg border border-border/50 p-3.5">
               <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50">

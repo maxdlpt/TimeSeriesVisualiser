@@ -56,21 +56,9 @@ export const useGraphStore = create<GraphState>((set) => ({
   })),
   reorderSeries: (newOrder) => set({ activeSeries: newOrder }),
   toggleSeriesVisibility: (id) => set((state) => ({
-    activeSeries: state.activeSeries.map(s => {
-      if (s.id !== id) return s
-      const nowVisible = !(s.visible ?? true)
-      return {
-        ...s,
-        visible: nowVisible,
-        movingAverages: nowVisible
-          ? (s.movingAverages ?? []).map(ma =>
-              ma.hiddenWithParent ? { ...ma, visible: true, hiddenWithParent: undefined } : ma
-            )
-          : (s.movingAverages ?? []).map(ma =>
-              ma.visible !== false ? { ...ma, visible: false, hiddenWithParent: true } : ma
-            ),
-      }
-    }),
+    activeSeries: state.activeSeries.map(s =>
+      s.id === id ? { ...s, visible: !(s.visible ?? true) } : s
+    ),
   })),
   setZoomDomain: (domain) => set({ zoomDomain: domain }),
   setRightPanel: (panel) => set({ rightPanel: panel }),

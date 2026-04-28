@@ -395,10 +395,14 @@ export function AddLinePanel({ placement, onClose }: AddLinePanelProps): JSX.Ele
 
   const handleAdd = useCallback(
     (series: DataSeries): void => {
-      addSeries(series)
+      // If the exact same DB series is already on the graph, clone it with a
+      // fresh UUID so it becomes an independent instance with its own transform,
+      // style, and display state.
+      const duplicate = activeSeries.some(s => s.id === series.id)
+      addSeries(duplicate ? { ...series, id: crypto.randomUUID() } : series)
       setRightPanel(null)
     },
-    [addSeries, setRightPanel],
+    [addSeries, setRightPanel, activeSeries],
   )
 
   return (
