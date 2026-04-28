@@ -16,7 +16,7 @@ import { fileURLToPath } from 'url'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const root      = join(__dirname, '..')
-const svgPath   = join(root, 'logo designs', 'Picture4.svg')
+const svgPath   = join(root, 'logo designs', 'Picture5.svg')
 const buildDir  = join(root, 'build')
 
 mkdirSync(buildDir, { recursive: true })
