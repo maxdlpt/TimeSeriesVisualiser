@@ -23,9 +23,9 @@ mkdirSync(buildDir, { recursive: true })
 
 const svgBuffer = readFileSync(svgPath)
 
-// Render the SVG onto a transparent square canvas, letterboxed with 8% padding.
+// Render the SVG onto a transparent square canvas, letterboxed with 2% padding.
 const MASTER = 1024
-const padding = Math.round(MASTER * 0.08)
+const padding = Math.round(MASTER * 0.02)
 const inner   = MASTER - padding * 2
 
 console.log('Rendering SVG → 1024×1024 master PNG…')

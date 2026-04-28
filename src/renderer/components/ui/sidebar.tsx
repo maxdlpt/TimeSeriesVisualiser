@@ -251,7 +251,7 @@ export const Sidebar = () => {
           <img
             src={logoUrl}
             alt="TimeSeries Visualiser"
-            className={`object-contain transition-all duration-300 ${open ? 'h-10 w-full' : 'h-8 w-8'}`}
+            className={`object-contain transition-all duration-300 ${open ? 'h-14 w-full' : 'h-10 w-10'}`}
           />
         </div>
       </div>
