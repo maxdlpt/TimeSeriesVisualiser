@@ -1,5 +1,5 @@
 appId: com.tsv.app
-productName: TimeSeriesVisualiser
+productName: Epoch
 directories:
   buildResources: build
 files:
@@ -14,10 +14,10 @@ asarUnpack:
   - "**/*.node"
   - "**/node_modules/better-sqlite3/**"
 win:
-  executableName: TimeSeriesVisualiser
+  executableName: Epoch
   icon: build/icon.ico
 nsis:
-  artifactName: ${name}-${version}-setup.${ext}
+  artifactName: Epoch-${version}-setup.${ext}
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always

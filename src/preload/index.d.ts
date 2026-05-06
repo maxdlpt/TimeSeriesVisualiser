@@ -42,6 +42,9 @@ export interface TsvAPI {
   capture: {
     rect: (rect: { x: number; y: number; width: number; height: number }) => Promise<Uint8Array | null>
   }
+  clipboard: {
+    readSpreadsheet: () => Promise<string[][] | null>
+  }
 }
 
 declare global {

@@ -55,16 +55,20 @@ const LINE_STYLES = [
 const LINE_WIDTHS = [1, 2, 3] as const
 
 function defaultWindow(freq?: DataFreq): number {
-  if (freq === 'monthly')   return 3
-  if (freq === 'quarterly') return 4
-  if (freq === 'yearly')    return 3
+  if (freq === 'weekly')      return 4
+  if (freq === 'monthly')     return 3
+  if (freq === 'quarterly')   return 4
+  if (freq === 'semi-annual') return 4
+  if (freq === 'yearly')      return 3
   return 20
 }
 
 function freqUnit(freq?: DataFreq): string {
-  if (freq === 'monthly')   return 'months'
-  if (freq === 'quarterly') return 'quarters'
-  if (freq === 'yearly')    return 'years'
+  if (freq === 'weekly')      return 'weeks'
+  if (freq === 'monthly')     return 'months'
+  if (freq === 'quarterly')   return 'quarters'
+  if (freq === 'semi-annual') return 'periods'
+  if (freq === 'yearly')      return 'years'
   return 'days'
 }
 

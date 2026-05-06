@@ -1,5 +1,5 @@
 import { useState, useCallback, forwardRef, useImperativeHandle, useRef, useEffect } from 'react'
-import { Check, ChevronDown, Database, HardDrive, BarChart2, X } from 'lucide-react'
+import { Check, ChevronDown, Database, HardDrive, BarChart2, X, Table2 } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import type { DataSeries, DataFreq, DataType } from '../../../shared/types'
 import { formatFreq } from '../../lib/freq'
@@ -29,7 +29,7 @@ export interface SeriesReviewHandle {
 
 // ─── Draft ────────────────────────────────────────────────────────────────────
 
-const FREQS: DataFreq[] = ['daily', 'monthly', 'quarterly', 'yearly']
+const FREQS: DataFreq[] = ['daily', 'weekly', 'monthly', 'quarterly', 'semi-annual', 'yearly']
 
 interface Draft {
   name: string
@@ -147,6 +147,67 @@ function formatDateRange(points: DataSeries['points']): string {
   return `${fmt(new Date(minT))} – ${fmt(new Date(maxT))}`
 }
 
+// ─── Data preview table ──────────────────────────────────────────────────────
+
+const MAX_PREVIEW_ROWS = 50
+
+const SHORT_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+
+function fmtDate(d: Date): string {
+  const day = String(d.getUTCDate()).padStart(2, '0')
+  const mon = SHORT_MONTHS[d.getUTCMonth()]
+  const year = d.getUTCFullYear()
+  return `${day} ${mon} ${year}`
+}
+
+function fmtValue(v: number): string {
+  return `${v.toFixed(2)}%`
+}
+
+function DataPreview({ series }: { series: DataSeries }) {
+  const pts = series.points
+  const capped = pts.length > MAX_PREVIEW_ROWS
+  const rows = capped ? pts.slice(0, MAX_PREVIEW_ROWS) : pts
+
+  return (
+    <motion.div
+      initial={{ height: 0, opacity: 0 }}
+      animate={{ height: 'auto', opacity: 1 }}
+      exit={{ height: 0, opacity: 0 }}
+      transition={{ duration: 0.2 }}
+      className="overflow-hidden"
+    >
+      <div className="max-h-64 overflow-y-auto rounded border border-border mt-2">
+        <table className="min-w-full text-xs border-collapse">
+          <thead className="sticky top-0 bg-muted z-10">
+            <tr>
+              <th className="text-left px-3 py-1.5 font-semibold text-muted-foreground border-b border-border">#</th>
+              <th className="text-left px-3 py-1.5 font-semibold text-muted-foreground border-b border-border">Date</th>
+              <th className="text-right px-3 py-1.5 font-semibold text-muted-foreground border-b border-border">Value</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((p, i) => (
+              <tr key={i} className="hover:bg-muted/30 transition-colors">
+                <td className="px-3 py-1 text-muted-foreground/60 tabular-nums">{i + 1}</td>
+                <td className="px-3 py-1 tabular-nums">{fmtDate(p.date)}</td>
+                <td className="px-3 py-1 text-right font-mono tabular-nums">
+                  {fmtValue(p.value)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {capped && (
+          <div className="text-center text-[10px] text-muted-foreground py-1.5 border-t border-border bg-muted/30">
+            Showing {MAX_PREVIEW_ROWS} of {pts.length.toLocaleString()} rows
+          </div>
+        )}
+      </div>
+    </motion.div>
+  )
+}
+
 // ─── SeriesReviewPanel ────────────────────────────────────────────────────────
 
 interface Props {
@@ -170,6 +231,14 @@ export const SeriesReviewPanel = forwardRef<SeriesReviewHandle, Props>(
     const [destinations, setDestinations] = useState<Map<string, Destination>>(
       () => new Map(series.map(s => [s.id, { type: 'graph' as const }]))
     )
+    const [expandedData, setExpandedData] = useState<Set<string>>(new Set())
+    const toggleData = useCallback((id: string) => {
+      setExpandedData(prev => {
+        const next = new Set(prev)
+        if (next.has(id)) next.delete(id); else next.add(id)
+        return next
+      })
+    }, [])
 
     const updateDraft = useCallback((id: string, patch: Partial<Draft>) => {
       setDrafts(prev => new Map(prev).set(id, { ...prev.get(id)!, ...patch }))
@@ -178,6 +247,18 @@ export const SeriesReviewPanel = forwardRef<SeriesReviewHandle, Props>(
     const setDest = useCallback((id: string, dest: Destination) => {
       setDestinations(prev => new Map(prev).set(id, dest))
     }, [])
+
+    // Detect duplicate codes within the batch
+    const codeDuplicates = new Set<string>()
+    const codeMap = new Map<string, number>()
+    for (const [, d] of drafts) {
+      const c = d.code.trim()
+      if (!c) continue
+      codeMap.set(c, (codeMap.get(c) ?? 0) + 1)
+    }
+    for (const [code, count] of codeMap) {
+      if (count > 1) codeDuplicates.add(code)
+    }
 
     useImperativeHandle(ref, () => ({
       getAll: () => series.map(s => ({
@@ -191,7 +272,8 @@ export const SeriesReviewPanel = forwardRef<SeriesReviewHandle, Props>(
         {series.map(s => {
           const draft = drafts.get(s.id)!
           const dest  = destinations.get(s.id)!
-          const hasError = !draft.name.trim() || !draft.code.trim()
+          const isDupCode = codeDuplicates.has(draft.code.trim())
+          const hasError = !draft.name.trim() || !draft.code.trim() || isDupCode
 
           return (
             <div key={s.id} className="rounded-lg border border-border p-4 space-y-3">
@@ -203,7 +285,28 @@ export const SeriesReviewPanel = forwardRef<SeriesReviewHandle, Props>(
                 />
                 <span className="text-xs text-muted-foreground flex-1 min-w-0 truncate">
                   {formatDateRange(s.points)} · {s.points.length.toLocaleString()} pts
+                  {s.dateFormat && s.dateFormat !== 'ISO' && (
+                    <span className="text-blue-500 ml-1" title={`Detected date format: ${s.dateFormat === 'DMY' ? 'DD/MM/YYYY' : 'MM/DD/YYYY'}`}>
+                      [{s.dateFormat}]
+                    </span>
+                  )}
+                  {(s.droppedRows ?? 0) > 0 && (
+                    <span className="text-amber-500 ml-1">({s.droppedRows} rows dropped)</span>
+                  )}
                 </span>
+                <button
+                  type="button"
+                  title="View data"
+                  onClick={() => toggleData(s.id)}
+                  className={cn(
+                    'flex items-center justify-center h-[26px] w-[26px] rounded transition-colors shrink-0',
+                    expandedData.has(s.id)
+                      ? 'bg-primary/10 text-primary'
+                      : 'hover:bg-accent text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  <Table2 className="h-3 w-3" />
+                </button>
                 <DestSelector value={dest} onChange={d => setDest(s.id, d)} dbs={externalDBs} />
                 <button
                   type="button"
@@ -213,6 +316,19 @@ export const SeriesReviewPanel = forwardRef<SeriesReviewHandle, Props>(
                   className="flex items-center justify-center h-[26px] w-[26px] rounded bg-primary hover:bg-primary/90 text-primary-foreground transition-colors disabled:opacity-35 disabled:cursor-not-allowed shrink-0"
                 >
                   <Check className="h-3 w-3" />
+                </button>
+                <button
+                  type="button"
+                  title="Exclude this series"
+                  onClick={() => setDest(s.id, { type: 'skip' })}
+                  className={cn(
+                    'flex items-center justify-center h-[26px] w-[26px] rounded transition-colors shrink-0',
+                    dest.type === 'skip'
+                      ? 'bg-muted text-muted-foreground'
+                      : 'hover:bg-destructive/10 text-muted-foreground hover:text-destructive',
+                  )}
+                >
+                  <X className="h-3 w-3" />
                 </button>
               </div>
 
@@ -228,11 +344,13 @@ export const SeriesReviewPanel = forwardRef<SeriesReviewHandle, Props>(
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-xs font-medium text-muted-foreground">Code</label>
+                  <label className="text-xs font-medium text-muted-foreground">
+                    Code {isDupCode && <span className="text-destructive ml-1">(duplicate)</span>}
+                  </label>
                   <Input
                     value={draft.code}
                     onChange={e => updateDraft(s.id, { code: e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, '_') })}
-                    className="h-8 text-sm font-mono"
+                    className={cn('h-8 text-sm font-mono', isDupCode && 'border-destructive')}
                     placeholder="MY_CODE"
                   />
                 </div>
@@ -246,7 +364,12 @@ export const SeriesReviewPanel = forwardRef<SeriesReviewHandle, Props>(
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-xs font-medium text-muted-foreground">Frequency</label>
+                  <label className="text-xs font-medium text-muted-foreground">
+                    Frequency
+                    {draft.data_freq === (s.data_freq ?? 'daily') && (
+                      <span className="ml-1 text-[10px] text-blue-500 font-normal">auto</span>
+                    )}
+                  </label>
                   <select
                     value={draft.data_freq}
                     onChange={e => updateDraft(s.id, { data_freq: e.target.value as DataFreq })}
@@ -267,6 +390,11 @@ export const SeriesReviewPanel = forwardRef<SeriesReviewHandle, Props>(
                   </select>
                 </div>
               </div>
+
+              {/* Data preview table */}
+              <AnimatePresence>
+                {expandedData.has(s.id) && <DataPreview series={s} />}
+              </AnimatePresence>
             </div>
           )
         })}

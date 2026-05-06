@@ -10,6 +10,69 @@ function makeId(): string {
 // ─── Date parsing ─────────────────────────────────────────────────────────────
 
 const SLASH_RE = /^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/
+const QUARTER_RE = /^Q([1-4])\s*[\/\-]?\s*(\d{4})$/i
+const YEAR_QUARTER_RE = /^(\d{4})\s*[\/\-]?\s*Q([1-4])$/i
+const MONTH_YEAR_RE = /^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\w*\s*[,\-]?\s*(\d{2,4})$/i
+const DAY_MONTH_YEAR_RE = /^(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\w*\s+(\d{4})$/i
+const YYYY_MM_RE = /^(\d{4})[\/\-](\d{1,2})$/
+
+const MONTH_MAP: Record<string, number> = {
+  jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6,
+  jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12,
+}
+
+/**
+ * Parse a single date string, supporting multiple formats:
+ * - ISO dates (2023-01-15)
+ * - Quarter labels: "Q1 2023", "2023-Q1" → last day of that quarter
+ * - Monthly labels: "Jan 2023", "January 2023", "2023-01" → last day of that month
+ * - Fallback: native Date parser
+ */
+function parseFlexibleDate(raw: string): Date {
+  const s = raw.trim()
+
+  // Quarter: Q1 2023, Q2/2023, etc.
+  let qm = s.match(QUARTER_RE)
+  if (qm) {
+    const q = parseInt(qm[1])
+    const y = parseInt(qm[2])
+    return new Date(Date.UTC(y, q * 3, 0)) // last day of quarter
+  }
+  qm = s.match(YEAR_QUARTER_RE)
+  if (qm) {
+    const y = parseInt(qm[1])
+    const q = parseInt(qm[2])
+    return new Date(Date.UTC(y, q * 3, 0))
+  }
+
+  // Month-year: "Jan 2023", "January 2023", "Mar-60", "Sep-99"
+  const mm = s.match(MONTH_YEAR_RE)
+  if (mm) {
+    const month = MONTH_MAP[mm[1].slice(0, 3).toLowerCase()]
+    let year = parseInt(mm[2])
+    if (year < 100) year += year < 50 ? 2000 : 1900 // 60 → 1960, 23 → 2023
+    return new Date(Date.UTC(year, month, 0)) // last day of that month
+  }
+
+  // Day-month-year: "01 Jan 2023", "15 Mar 2023"
+  const dmy = s.match(DAY_MONTH_YEAR_RE)
+  if (dmy) {
+    const day = parseInt(dmy[1])
+    const month = MONTH_MAP[dmy[2].slice(0, 3).toLowerCase()]
+    const year = parseInt(dmy[3])
+    return new Date(Date.UTC(year, month - 1, day))
+  }
+
+  // YYYY-MM: "2023-01"
+  const ym = s.match(YYYY_MM_RE)
+  if (ym) {
+    const year = parseInt(ym[1])
+    const month = parseInt(ym[2])
+    return new Date(Date.UTC(year, month, 0)) // last day of that month
+  }
+
+  return new Date(s)
+}
 
 function utcDate(year: number, month: number, day: number): Date {
   return new Date(Date.UTC(year < 100 ? 2000 + year : year, month - 1, day))
@@ -44,6 +107,13 @@ function medianGapDays(dates: Date[]): number {
   return gaps[Math.floor(gaps.length / 2)]
 }
 
+export type DateFormat = 'DMY' | 'MDY' | 'ISO'
+
+interface ParsedDateResult {
+  dates: Date[]
+  format: DateFormat
+}
+
 /**
  * Parse an array of date strings from a single CSV column, detecting DD/MM vs
  * MM/DD ambiguity at the column level instead of row-by-row.
@@ -59,14 +129,14 @@ function medianGapDays(dates: Date[]): number {
  *      whose median collapses to 1 — reliably distinguishing it from the correct
  *      interpretation regardless of how many years the series spans.
  */
-function parseDateColumn(values: string[]): Date[] {
+export function parseDateColumn(values: string[], forceFormat?: DateFormat): ParsedDateResult {
   const trimmed = values.map((v) => v.trim())
   const matches = trimmed.map((v) => v.match(SLASH_RE))
   const allSlash = matches.every(Boolean)
 
   if (!allSlash) {
     // Non-slash column (ISO, English long-form, etc.) — trust native parsing
-    return trimmed.map((v) => new Date(v))
+    return { dates: trimmed.map((v) => parseFlexibleDate(v)), format: 'ISO' }
   }
 
   const parseDMY = (m: RegExpMatchArray): Date =>
@@ -74,25 +144,21 @@ function parseDateColumn(values: string[]): Date[] {
   const parseMDY = (m: RegExpMatchArray): Date =>
     utcDate(parseInt(m[3]), parseInt(m[1]), parseInt(m[2]))
 
+  // Allow user override
+  if (forceFormat === 'DMY') return { dates: matches.map((m) => (m ? parseDMY(m) : new Date(NaN))), format: 'DMY' }
+  if (forceFormat === 'MDY') return { dates: matches.map((m) => (m ? parseMDY(m) : new Date(NaN))), format: 'MDY' }
+
   // Unambiguous: at least one value has day component > 12
   if (matches.some((m) => m && parseInt(m[1]) > 12)) {
-    return matches.map((m) => (m ? parseDMY(m) : new Date(NaN)))
+    return { dates: matches.map((m) => (m ? parseDMY(m) : new Date(NaN))), format: 'DMY' }
   }
 
   // Unambiguous: second component > 12 → must be a day → MM/DD/YYYY
   if (matches.some((m) => m && parseInt(m[2]) > 12)) {
-    return matches.map((m) => (m ? parseMDY(m) : new Date(NaN)))
+    return { dates: matches.map((m) => (m ? parseMDY(m) : new Date(NaN))), format: 'MDY' }
   }
 
   // Fully ambiguous: both A and B components are ≤ 12 throughout the column.
-  // Span comparison fails here: "01/MM/YYYY" monthly data read as MM/DD maps to
-  // January 1–12 of each year, so both interpretations span roughly the same
-  // total period and the ratio never reaches 5×.
-  //
-  // Median consecutive gap is the reliable discriminator:
-  //   Correct interpretation  → consistent ~30-day (monthly) or ~1-day (daily) gaps
-  //   Wrong interpretation    → bimodal: 1-day intra-January + ~354-day year jumps
-  //                             whose median collapses to 1 day regardless of N.
   const dmyDates = matches.map((m) => (m ? parseDMY(m) : new Date(NaN)))
   const mdyDates = matches.map((m) => (m ? parseMDY(m) : new Date(NaN)))
 
@@ -101,9 +167,9 @@ function parseDateColumn(values: string[]): Date[] {
 
   // Choose the interpretation whose median gap is larger — it represents the
   // actual calendar spacing rather than the artificial 1-day cluster.
-  if (dmyGap !== mdyGap) return dmyGap > mdyGap ? dmyDates : mdyDates
+  if (dmyGap !== mdyGap) return dmyGap > mdyGap ? { dates: dmyDates, format: 'DMY' } : { dates: mdyDates, format: 'MDY' }
   // Tiebreaker (e.g. sparse ambiguous data): keep whichever spans more time.
-  return spanMs(dmyDates) >= spanMs(mdyDates) ? dmyDates : mdyDates
+  return spanMs(dmyDates) >= spanMs(mdyDates) ? { dates: dmyDates, format: 'DMY' } : { dates: mdyDates, format: 'MDY' }
 }
 
 // ─── Data type detection & conversion ────────────────────────────────────────
@@ -145,6 +211,38 @@ export function toGrowthRates(points: DataPoint[]): { growthPoints: DataPoint[];
   return { growthPoints, startingValue }
 }
 
+// ─── Numeric cleaning ─────────────────────────────────────────────────────────
+
+interface CleanResult { value: number; hasPct: boolean }
+
+/**
+ * Parse a single cell value, handling:
+ *   - Parenthesised negatives: "(1.5)" → -1.5
+ *   - Percent signs: "1.134%" → { value: 1.134, hasPct: true }
+ *   - Currency symbols: "$1,234.56" → 1234.56
+ *   - Thousand separators: "1,234" → 1234
+ *
+ * The `hasPct` flag is used at the column level to decide whether values that
+ * lack a `%` are decimal fractions that need ×100 conversion.
+ */
+function cleanNumericRich(raw: string): CleanResult {
+  let s = raw.trim()
+  // Accounting-style negatives: (value) → -value
+  const isParens = s.startsWith('(') && s.endsWith(')')
+  if (isParens) s = s.slice(1, -1).trim()
+  // Detect and strip percent sign
+  const hasPct = s.endsWith('%')
+  if (hasPct) s = s.slice(0, -1)
+  // Strip currency symbols and whitespace
+  s = s.replace(/[£$€¥₹\s]/g, '')
+  // Strip thousand separators (commas followed by 3 digits)
+  s = s.replace(/,(\d{3})/g, '$1')
+  let value = parseFloat(s)
+  if (isParens && !isNaN(value)) value = -value
+  return { value, hasPct }
+}
+
+
 // NOTE: within-file column-name collisions are disambiguated here at parse time
 // using a `_2`, `_3`, ... suffix on `code` (display `name` keeps the original
 // label so the UI still shows e.g. "Price"). Papa-parse renames duplicate
@@ -162,7 +260,10 @@ export function parseCSVText(csvText: string): DataSeries[] {
   const rows = result.data
   if (rows.length === 0) return []
 
-  const headers = Object.keys(rows[0])
+  // Use meta.fields (the actual header row) instead of Object.keys(rows[0]),
+  // because PapaParse omits keys from rows where the field has no value —
+  // jagged CSVs (short early rows) would silently drop trailing columns.
+  const headers = result.meta.fields ?? Object.keys(rows[0])
   const dateCol = headers[0]
   // Filter out blank-named columns — Excel sheets often carry trailing empty
   // columns within their used-range that produce phantom series with no data.
@@ -172,7 +273,7 @@ export function parseCSVText(csvText: string): DataSeries[] {
 
   // Parse the entire date column at once so DD/MM vs MM/DD detection works
   // across the full column rather than ambiguously row-by-row.
-  const parsedDates = parseDateColumn(rows.map((r) => r[dateCol] ?? ''))
+  const { dates: parsedDates, format: detectedDateFormat } = parseDateColumn(rows.map((r) => r[dateCol] ?? ''))
 
   // Disambiguate codes within this file using `_2`, `_3`, ... suffixes, based
   // on the user's original column label (after stripping Papa's auto-rename).
@@ -185,13 +286,26 @@ export function parseCSVText(csvText: string): DataSeries[] {
     return seen === 0 ? baseCode : `${baseCode}_${seen + 1}`
   })
 
+  const totalRows = rows.length
+
   return valueHeaders.map((col, i) => {
-    const rawPoints = rows
-      .map((row, rowIdx) => ({
-        date: parsedDates[rowIdx],
-        value: parseFloat(row[col]),
+    // First pass: parse each cell with rich metadata (value + hasPct flag)
+    const richCells = rows.map((row, rowIdx) => ({
+      date: parsedDates[rowIdx],
+      ...cleanNumericRich(row[col] ?? ''),
+    }))
+
+    // Per-cell format: if the cell had a %, the number is already in percent
+    // form (e.g. "1.13%" → 1.13).  If no %, treat as decimal fraction and ×100
+    // (e.g. "0.0113" → 1.13).
+    const rawPoints = richCells
+      .map((c) => ({
+        date: c.date,
+        value: c.hasPct ? c.value : c.value * 100,
       }))
       .filter((p) => !isNaN(p.date.getTime()) && !isNaN(p.value))
+
+    const droppedRows = totalRows - rawPoints.length
     const freq = detectFrequency(rawPoints)
     // Snap dates to canonical period-end (e.g. Apr 29 → Apr 30 for monthly)
     if (freq !== 'daily') {
@@ -218,6 +332,8 @@ export function parseCSVText(csvText: string): DataSeries[] {
       source: 'memory' as const,
       dataType: detectedType,
       startingValue,
+      droppedRows,
+      dateFormat: detectedDateFormat,
       points,
       // Snapshot copy: 'Reset to Raw' must restore these exactly even after
       // an in-place mutation of `points`.
@@ -226,19 +342,8 @@ export function parseCSVText(csvText: string): DataSeries[] {
   })
 }
 
-export function parseExcelBuffer(buffer: ArrayBuffer): DataSeries[] {
-  // cellDates: true promotes numeric cells whose format code looks like a date
-  // (e.g. "Nov-97") to type 'd' with a real JS Date value instead of a serial
-  // number.  sheet_to_csv ignores dateNF for those cells and outputs the raw
-  // formatted string ("Nov-97"), which new Date() then misparses.  We avoid
-  // sheet_to_csv entirely and build the CSV ourselves:
-  //   • Date column (c === first col, t === 'd'): emit ISO "YYYY-MM-DD"
-  //   • All other cells: emit the formatted display string (cell.w) so that
-  //     percentage values ("1.39%") keep their display scale through parseFloat.
-  const wb = XLSX.read(buffer, { type: 'array', cellDates: true })
-  const ws = wb.Sheets[wb.SheetNames[0]]
-  if (!ws['!ref']) return []
-
+function parseExcelSheet(ws: XLSX.WorkSheet): string {
+  if (!ws['!ref']) return ''
   const range = XLSX.utils.decode_range(ws['!ref'])
   const csvRows: string[] = []
 
@@ -252,22 +357,154 @@ export function parseExcelBuffer(buffer: ArrayBuffer): DataSeries[] {
       }
       if (c === range.s.c && cell.t === 'd') {
         // First column, date cell → ISO YYYY-MM-DD (always unambiguous).
-        // XLSX cellDates creates Date objects in LOCAL time, so we must use
-        // getFullYear/getMonth/getDate (not toISOString which shifts to UTC
-        // and can move BST midnight dates back one day into the wrong month).
         const d = cell.v as Date
         const yyyy = d.getFullYear()
         const mm = String(d.getMonth() + 1).padStart(2, '0')
         const dd = String(d.getDate()).padStart(2, '0')
         cols.push(`${yyyy}-${mm}-${dd}`)
+      } else if (c === range.s.c && cell.t === 'n' && !cell.w) {
+        // First column, numeric with no format string — likely an Excel date serial number
+        const d = excelSerialToDate(cell.v as number)
+        if (d) {
+          const yyyy = d.getUTCFullYear()
+          const mm = String(d.getUTCMonth() + 1).padStart(2, '0')
+          const dd = String(d.getUTCDate()).padStart(2, '0')
+          cols.push(`${yyyy}-${mm}-${dd}`)
+        } else {
+          cols.push(String(cell.v))
+        }
       } else {
-        // Everything else: use the pre-formatted display string if available,
-        // fall back to the raw value as a string.
         cols.push(cell.w ?? String(cell.v))
       }
     }
     csvRows.push(cols.join(','))
   }
+  return csvRows.join('\n')
+}
 
-  return parseCSVText(csvRows.join('\n'))
+/**
+ * Convert an Excel date serial number to a UTC Date.
+ * Excel epoch: 1900-01-01 = serial 1 (with the Lotus 1-2-3 leap year bug at serial 60).
+ * Returns null for values that don't look like dates (< 1 or > 2958465 which is 9999-12-31).
+ */
+function excelSerialToDate(serial: number): Date | null {
+  if (serial < 1 || serial > 2958465) return null
+  // Adjust for Lotus 1-2-3 bug (Excel thinks 1900 is a leap year)
+  const adjusted = serial > 60 ? serial - 1 : serial
+  const ms = (adjusted - 1) * 86400000
+  const epoch = Date.UTC(1900, 0, 1)
+  return new Date(epoch + ms)
+}
+
+export function parseExcelBuffer(buffer: ArrayBuffer): DataSeries[] {
+  // cellDates: true promotes numeric cells whose format code looks like a date
+  // (e.g. "Nov-97") to type 'd' with a real JS Date value instead of a serial
+  // number.  We avoid sheet_to_csv entirely and build the CSV ourselves.
+  const wb = XLSX.read(buffer, { type: 'array', cellDates: true })
+
+  // Try all sheets, return the first one that produces valid series
+  for (const sheetName of wb.SheetNames) {
+    const ws = wb.Sheets[sheetName]
+    const csvText = parseExcelSheet(ws)
+    if (!csvText) continue
+    const series = parseCSVText(csvText)
+    if (series.length > 0 && series[0].points.length > 0) return series
+  }
+
+  return []
+}
+
+/**
+ * Parse Excel's HTML clipboard format via SheetJS.
+ *
+ * When copying cells, Excel embeds `x:num` attributes on `<td>` elements
+ * containing the raw cell value (e.g. `<td x:num="0.01134098">1%</td>`).
+ * SheetJS parses these into `cell.v` (raw value) vs `cell.w` (display string).
+ *
+ * Returns a tab-separated string grid (header + data rows) using raw values
+ * for numeric cells, or null if the HTML doesn't contain a parseable table.
+ */
+/**
+ * Convert an Excel serial date number to YYYY-MM-DD.
+ * Excel epoch: serial 1 = Jan 1, 1900.
+ * Accounts for the Lotus 1-2-3 bug (serial 60 = fake Feb 29, 1900).
+ */
+function excelSerialToISO(serial: number): string {
+  // For serial > 60, subtract 1 to skip the phantom Feb 29, 1900
+  const dayOffset = serial > 60 ? serial - 2 : serial - 1
+  const d = new Date(Date.UTC(1900, 0, 1 + dayOffset))
+  const y = d.getUTCFullYear()
+  const m = String(d.getUTCMonth() + 1).padStart(2, '0')
+  const day = String(d.getUTCDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+export function parseClipboardHtml(html: string): string[][] | null {
+  // Primary: DOMParser — reads Excel's x:num attributes for full-precision values.
+  // XLSX.read() crashes on some clipboard HTML formats, so DOMParser is more robust.
+  try {
+    const parser = new DOMParser()
+    const doc = parser.parseFromString(html, 'text/html')
+    const table = doc.querySelector('table')
+    if (table) {
+      const trs = table.querySelectorAll('tr')
+      if (trs.length > 0) {
+        const rows: string[][] = []
+        for (const tr of trs) {
+          const cells: string[] = []
+          const tds = tr.querySelectorAll('td, th')
+          for (let c = 0; c < tds.length; c++) {
+            const td = tds[c]
+            const xNum = td.getAttribute('x:num')
+            if (c === 0) {
+              // First column (dates): convert Excel serial → YYYY-MM-DD
+              if (xNum != null && !isNaN(Number(xNum))) {
+                cells.push(excelSerialToISO(Number(xNum)))
+              } else {
+                cells.push(td.textContent?.trim() ?? '')
+              }
+            } else {
+              // Value columns: prefer x:num for full precision, fall back to text
+              cells.push(xNum ?? td.textContent?.trim() ?? '')
+            }
+          }
+          if (cells.length > 0) rows.push(cells)
+        }
+        if (rows.length > 0) return rows
+      }
+    }
+  } catch { /* DOMParser failed — try XLSX fallback */ }
+
+  // Fallback: XLSX parser (works for some HTML formats that DOMParser can't handle)
+  try {
+    const wb = XLSX.read(html, { type: 'string', cellDates: true })
+    const ws = wb.Sheets[wb.SheetNames[0]]
+    if (!ws?.['!ref']) return null
+
+    const range = XLSX.utils.decode_range(ws['!ref'])
+    const rows: string[][] = []
+
+    for (let r = range.s.r; r <= range.e.r; r++) {
+      const cols: string[] = []
+      for (let c = range.s.c; c <= range.e.c; c++) {
+        const cell = ws[XLSX.utils.encode_cell({ r, c })]
+        if (!cell || cell.v == null) { cols.push(''); continue }
+
+        if (c === range.s.c) {
+          if (cell.t === 'd') {
+            const d = cell.v as Date
+            cols.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`)
+          } else {
+            cols.push(cell.w ?? String(cell.v))
+          }
+        } else {
+          cols.push(String(cell.v))
+        }
+      }
+      rows.push(cols)
+    }
+
+    if (rows.length === 0) return null
+    return rows
+  } catch { return null }
 }

@@ -33,15 +33,17 @@ function MiniLineChartIcon({ className }: { className?: string }) {
 // ─── Frequency badge ──────────────────────────────────────────────────────────
 
 const FREQ_STYLES: Record<NonNullable<DataFreq> | 'unknown', string> = {
-  daily:     'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300',
-  monthly:   'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300',
-  quarterly: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
-  yearly:    'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
-  unknown:   'bg-muted text-muted-foreground',
+  daily:         'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300',
+  weekly:        'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
+  monthly:       'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300',
+  quarterly:     'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+  'semi-annual': 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
+  yearly:        'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
+  unknown:       'bg-muted text-muted-foreground',
 }
 
 const FREQ_ORDER: Record<NonNullable<DataFreq> | 'unknown', number> = {
-  daily: 0, monthly: 1, quarterly: 2, yearly: 3, unknown: 4,
+  daily: 0, weekly: 1, monthly: 2, quarterly: 3, 'semi-annual': 4, yearly: 5, unknown: 6,
 }
 
 function FreqBadge({ record }: { record: DBRecord }) {

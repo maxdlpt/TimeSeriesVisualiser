@@ -676,7 +676,7 @@ export function BaseDatePicker({ availableDates, resolvedDate, onChange, freq }:
         onSelect={handleYearChange}
       />
 
-      {freq === 'quarterly' && (
+      {(freq === 'quarterly' || freq === 'semi-annual') && (
         <SpinDropdown
           options={curQuarters.map(q => String(q))}
           labels={curQuarters.map(q => QUARTERS[q - 1])}
@@ -685,7 +685,7 @@ export function BaseDatePicker({ availableDates, resolvedDate, onChange, freq }:
         />
       )}
 
-      {(freq === 'monthly' || freq === 'daily') && (
+      {(freq === 'monthly' || freq === 'weekly' || freq === 'daily') && (
         <SpinDropdown
           options={curMonths.map(m => String(m))}
           labels={curMonths.map(m => MONTHS[m - 1])}
@@ -694,7 +694,7 @@ export function BaseDatePicker({ availableDates, resolvedDate, onChange, freq }:
         />
       )}
 
-      {freq === 'daily' && (
+      {(freq === 'daily' || freq === 'weekly') && (
         <SpinDropdown
           options={curDays.map(d => String(d))}
           labels={curDays.map(d => String(d).padStart(2, '0'))}
@@ -1670,7 +1670,7 @@ export function GraphTab(): JSX.Element {
     <div className="relative flex h-full w-full">
       <div className="flex flex-1 flex-col min-w-0 overflow-y-auto">
         {/* Graph title — editable inline, top-left aligned like Upload/Settings tabs */}
-        <div className="flex items-center justify-between px-8 pt-8 shrink-0">
+        <div className="flex items-center justify-between px-8 h-[108px] shrink-0">
           <div ref={exportTitleRef} className="flex items-center gap-3 leading-none select-none text-foreground" style={WIN_FONT_STYLE}>
             <LineChartIcon className="h-8 w-8 text-primary shrink-0" />
             <h2

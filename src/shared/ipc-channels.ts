@@ -43,4 +43,6 @@ export enum IPC {
   DIALOG_SAVE_CSV         = 'dialog:save-csv',
   DIALOG_EXPORT_SERIES    = 'dialog:export-series',
 
+  // Clipboard (main-process access for full Excel binary data)
+  CLIPBOARD_READ_SPREADSHEET = 'clipboard:read-spreadsheet',
 }

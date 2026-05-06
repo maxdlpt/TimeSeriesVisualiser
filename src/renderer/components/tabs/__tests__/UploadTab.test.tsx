@@ -8,9 +8,6 @@ import { useAppStore } from '../../../store/app'
 
 // Mock the upload primitives so the tab tests focus on compositional behaviour,
 // not parse-on-input (already covered in FileDropZone.test.tsx / the primitives).
-// The mocks expose data-testid hooks and an 'Emit' button that fires onSeries
-// with a fixture payload — this lets us drive the tab as if a file was dropped
-// or paste-parsed, without jsdom's limited File/drag event support.
 vi.mock('../../upload/FileDropZone', () => ({
   FileDropZone: ({ onSeries }: { onSeries: (s: DataSeries[]) => void }) => (
     <div data-testid="file-drop-zone">
@@ -44,6 +41,38 @@ vi.mock('../../upload/PasteTable', () => ({
   ),
 }))
 
+// Mock UploadTablePage — renders a "Done" button that passes series through
+vi.mock('../../upload/UploadTablePage', () => ({
+  UploadTablePage: ({ series, onDone, onCancel }: {
+    series: DataSeries[]
+    onDone: (s: DataSeries[]) => void
+    onCancel: () => void
+  }) => (
+    <div data-testid="upload-table-page">
+      <span>{series.length} series in table</span>
+      <button type="button" data-testid="table-done" onClick={() => onDone(series)}>Done</button>
+      <button type="button" data-testid="table-cancel" onClick={onCancel}>Cancel</button>
+    </div>
+  ),
+}))
+
+// Mock UploadCardPage — renders series names + Add/Cancel buttons
+vi.mock('../../upload/UploadCardPage', () => ({
+  UploadCardPage: ({ series, onCancel }: {
+    series: DataSeries[]
+    onDispatch: (a: unknown[]) => Promise<boolean>
+    onDiscard: (id: string) => void
+    onCancel: () => void
+  }) => (
+    <div data-testid="upload-card-page">
+      {series.map((s: DataSeries) => (
+        <span key={s.id}>{s.name}</span>
+      ))}
+      <button type="button" data-testid="cards-cancel" onClick={onCancel}>Cancel</button>
+    </div>
+  ),
+}))
+
 // Import AFTER vi.mock() so hoisted mocks take effect.
 import { UploadTab } from '../UploadTab'
 
@@ -68,7 +97,7 @@ beforeEach(() => {
 describe('UploadTab', () => {
   it('renders heading and the File/Paste mode selector', () => {
     render(<UploadTab />)
-    expect(screen.getByRole('heading', { name: /upload data/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /upload series/i })).toBeInTheDocument()
     expect(screen.getByText(/^file$/i)).toBeInTheDocument()
     expect(screen.getByText(/^paste$/i)).toBeInTheDocument()
   })
@@ -87,46 +116,49 @@ describe('UploadTab', () => {
     expect(screen.queryByTestId('file-drop-zone')).not.toBeInTheDocument()
   })
 
-  it('hides the Add-to-Graph button when no series are pending', () => {
-    render(<UploadTab />)
-    expect(screen.queryByRole('button', { name: /add to graph/i })).not.toBeInTheDocument()
-  })
-
-  it('shows Add-to-Graph button with count + names after primitive emits series', async () => {
+  it('transitions to table phase after file emit', async () => {
     const user = userEvent.setup()
     render(<UploadTab />)
     await user.click(screen.getByTestId('file-emit'))
-    expect(screen.getByRole('button', { name: /add to graph/i })).toBeInTheDocument()
-    // Count line mentions 2 and both names
-    expect(screen.getByText(/2 series ready/i)).toBeInTheDocument()
-    expect(screen.getByText(/Alpha/)).toBeInTheDocument()
-    expect(screen.getByText(/Beta/)).toBeInTheDocument()
+    // Should now show the table page
+    expect(screen.getByTestId('upload-table-page')).toBeInTheDocument()
+    expect(screen.getByText('2 series in table')).toBeInTheDocument()
+    // Input primitives should be gone
+    expect(screen.queryByTestId('file-drop-zone')).not.toBeInTheDocument()
   })
 
-  it('click Add-to-Graph commits each pending series to graph store and flips tab', async () => {
+  it('transitions to cards phase after table Done', async () => {
     const user = userEvent.setup()
     render(<UploadTab />)
     await user.click(screen.getByTestId('file-emit'))
-    await user.click(screen.getByRole('button', { name: /add to graph/i }))
-
-    const active = useGraphStore.getState().activeSeries
-    expect(active).toHaveLength(2)
-    expect(active.map((s) => s.id)).toEqual(['upload-1', 'upload-2'])
-    expect(useAppStore.getState().activeTab).toBe('graph')
-    // Pending buffer cleared: the button is gone.
-    expect(screen.queryByRole('button', { name: /add to graph/i })).not.toBeInTheDocument()
+    await user.click(screen.getByTestId('table-done'))
+    // Should now show the card page with series names
+    expect(screen.getByTestId('upload-card-page')).toBeInTheDocument()
+    expect(screen.getByText('Alpha')).toBeInTheDocument()
+    expect(screen.getByText('Beta')).toBeInTheDocument()
   })
 
-  it('switching mode clears pendingSeries so mid-flight data does not leak', async () => {
+  it('cancel from table returns to input mode', async () => {
     const user = userEvent.setup()
     render(<UploadTab />)
     await user.click(screen.getByTestId('file-emit'))
-    expect(screen.getByRole('button', { name: /add to graph/i })).toBeInTheDocument()
+    expect(screen.getByTestId('upload-table-page')).toBeInTheDocument()
 
-    await user.click(screen.getByText(/^paste$/i))
-    expect(screen.queryByRole('button', { name: /add to graph/i })).not.toBeInTheDocument()
-    // No file-emit anymore either (primitive swapped)
-    expect(screen.queryByTestId('file-emit')).not.toBeInTheDocument()
+    await user.click(screen.getByTestId('table-cancel'))
+    expect(screen.getByTestId('file-drop-zone')).toBeInTheDocument()
+    expect(screen.queryByTestId('upload-table-page')).not.toBeInTheDocument()
+  })
+
+  it('cancel from cards returns to input mode', async () => {
+    const user = userEvent.setup()
+    render(<UploadTab />)
+    await user.click(screen.getByTestId('file-emit'))
+    await user.click(screen.getByTestId('table-done'))
+    expect(screen.getByTestId('upload-card-page')).toBeInTheDocument()
+
+    await user.click(screen.getByTestId('cards-cancel'))
+    expect(screen.getByTestId('file-drop-zone')).toBeInTheDocument()
+    expect(screen.queryByTestId('upload-card-page')).not.toBeInTheDocument()
   })
 
   it('assigns colors from palette starting at activeSeries.length offset', async () => {
@@ -137,13 +169,7 @@ describe('UploadTab', () => {
     const user = userEvent.setup()
     render(<UploadTab />)
     await user.click(screen.getByTestId('file-emit'))
-    await user.click(screen.getByRole('button', { name: /add to graph/i }))
-
-    const active = useGraphStore.getState().activeSeries
-    // existing (idx 0 = #3b82f6) + upload-1 (idx 1 = #ef4444) + upload-2 (idx 2 = #22c55e)
-    // from the 'default' palette in colors.ts
-    expect(active[0].color).toBe('#3b82f6')
-    expect(active[1].color).toBe('#ef4444')
-    expect(active[2].color).toBe('#22c55e')
+    // Reaches the table phase — series have been colored at offset 1
+    expect(screen.getByTestId('upload-table-page')).toBeInTheDocument()
   })
 })

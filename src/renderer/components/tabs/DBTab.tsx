@@ -1231,14 +1231,16 @@ export function DBTab() {
   }, [dbPath])
 
   return (
-    <div className="flex flex-col h-full w-full p-8 gap-6">
-      <TitleDropdown
-        selected={selectedDB}
-        onSelect={setSelectedDB}
-        externalDBs={externalDBs}
-        onAddDB={() => setIsAddDBOpen(true)}
-        onCreateDB={handleCreateDB}
-      />
+    <div className="flex flex-col h-full w-full px-8 pb-8 gap-6">
+      <div className="flex items-center h-[108px] shrink-0">
+        <TitleDropdown
+          selected={selectedDB}
+          onSelect={setSelectedDB}
+          externalDBs={externalDBs}
+          onAddDB={() => setIsAddDBOpen(true)}
+          onCreateDB={handleCreateDB}
+        />
+      </div>
 
       <Tabs value={activeInnerTab} onValueChange={setActiveInnerTab} className="flex flex-col gap-4 flex-1 min-h-0">
         <div className="flex items-end justify-between">

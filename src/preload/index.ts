@@ -52,4 +52,7 @@ contextBridge.exposeInMainWorld('tsv', {
     rect: (rect: { x: number; y: number; width: number; height: number }) =>
       ipcRenderer.invoke(IPC.CAPTURE_RECT, rect),
   },
+  clipboard: {
+    readSpreadsheet: () => ipcRenderer.invoke(IPC.CLIPBOARD_READ_SPREADSHEET) as Promise<string[][] | null>,
+  },
 })

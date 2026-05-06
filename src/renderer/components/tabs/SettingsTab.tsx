@@ -210,8 +210,10 @@ export function SettingsTab() {
   }
 
   return (
-    <div className="flex flex-col gap-10 p-8 max-w-2xl mx-auto">
-      <h2 className="text-xl font-semibold text-foreground">Settings</h2>
+    <div className="flex flex-col gap-10 px-8 pb-8 max-w-2xl mx-auto">
+      <div className="flex items-center h-[108px] shrink-0">
+        <h2 className="text-xl font-semibold text-foreground">Settings</h2>
+      </div>
 
       {/* ── Appearance ────────────────────────────────────────────────────────── */}
       <section className="space-y-5">

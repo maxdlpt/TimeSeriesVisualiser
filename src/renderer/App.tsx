@@ -50,7 +50,10 @@ export default function App() {
     <AppLayout>
       {activeTab === 'graph' && <GraphTab key={activeGraphId ?? 'no-graph'} />}
       {activeTab === 'new-graph' && <NewGraphTab />}
-      {activeTab === 'upload' && <UploadTab />}
+      {/* Keep UploadTab mounted so pending series survive tab switches */}
+      <div className={activeTab === 'upload' ? 'contents' : 'hidden'}>
+        <UploadTab />
+      </div>
       {activeTab === 'settings' && <SettingsTab />}
       {activeTab === 'db' && <DBTab />}
     </AppLayout>

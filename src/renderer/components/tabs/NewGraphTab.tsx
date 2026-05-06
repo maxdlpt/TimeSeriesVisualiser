@@ -127,7 +127,7 @@ export function NewGraphTab() {
   return (
     <div className="flex h-full w-full flex-col overflow-y-auto">
       {/* Title */}
-      <div className="flex items-center gap-3 px-8 pt-8 pb-6">
+      <div className="flex items-center gap-3 px-8 h-[108px] shrink-0">
         <LineChartIcon className="h-8 w-8 text-primary shrink-0" />
         <h1 className="text-4xl font-black text-foreground">Open/Create Graph</h1>
       </div>

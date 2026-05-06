@@ -50,11 +50,17 @@ function shiftDate(date: Date, n: number, freq: DataFreq | undefined): Date {
     case 'yearly':
       d.setUTCFullYear(d.getUTCFullYear() + n)
       break
+    case 'semi-annual':
+      d.setUTCMonth(d.getUTCMonth() + n * 6)
+      break
     case 'quarterly':
       d.setUTCMonth(d.getUTCMonth() + n * 3)
       break
     case 'monthly':
       d.setUTCMonth(d.getUTCMonth() + n)
+      break
+    case 'weekly':
+      d.setUTCDate(d.getUTCDate() + n * 7)
       break
     case 'daily':
       d.setUTCDate(d.getUTCDate() + n)

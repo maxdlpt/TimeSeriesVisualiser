@@ -10,21 +10,25 @@ import type { DataFreq } from '../../shared/types'
  *
  * Typical medians by frequency:
  *   daily (weekdays)  ~1 day   (Mon-Thu gaps = 1 day, Fri-Mon = 3 days; median = 1)
- *   weekly            ~7 days  (no separate category; treated as daily)
+ *   weekly            ~7 days
  *   monthly           ~30 days (EOM varies 28–31)
  *   quarterly         ~91 days (90-92 depending on quarter)
- *   semi-annual       ~182 days → yearly
+ *   semi-annual       ~182 days
  *   yearly            ~365 days
  *
  * Boundaries chosen as midpoints between adjacent typical values:
- *   daily/monthly  : 10   (midpoint 1–30, leaves room for sparse daily / weekly)
+ *   daily/weekly   : 4    (midpoint 1–7)
+ *   weekly/monthly : 16   (midpoint 7–30)
  *   monthly/qtrly  : 45   (midpoint 30–91, clear gap)
- *   qtrly/yearly   : 150  (midpoint 91–182, safely excludes semi-annual → yearly)
+ *   qtrly/semi     : 120  (midpoint 91–182)
+ *   semi/yearly    : 270  (midpoint 182–365)
  */
 function classify(medianDays: number): DataFreq {
-  if (medianDays <= 10) return 'daily'
+  if (medianDays <= 4) return 'daily'
+  if (medianDays <= 16) return 'weekly'
   if (medianDays <= 45) return 'monthly'
-  if (medianDays <= 150) return 'quarterly'
+  if (medianDays <= 120) return 'quarterly'
+  if (medianDays <= 270) return 'semi-annual'
   return 'yearly'
 }
 
@@ -81,10 +85,14 @@ export function inferFreqFromRecord(
  * day-of-month is noise — snapping normalises it.
  */
 export function snapToFrequency(date: Date, freq: DataFreq): Date {
-  if (freq === 'daily') return date
+  if (freq === 'daily' || freq === 'weekly') return date
   const y = date.getUTCFullYear()
   const m = date.getUTCMonth() // 0-based
   if (freq === 'yearly') return new Date(Date.UTC(y, 11, 31))
+  if (freq === 'semi-annual') {
+    // Semi-annual: snap to Jun 30 or Dec 31
+    return m < 6 ? new Date(Date.UTC(y, 5, 30)) : new Date(Date.UTC(y, 11, 31))
+  }
   if (freq === 'quarterly') {
     // Quarter: 0→Mar, 1→Jun, 2→Sep, 3→Dec
     const qEnd = Math.floor(m / 3) * 3 + 3 // month after quarter-end (0-based)

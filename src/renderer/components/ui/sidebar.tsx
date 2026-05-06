@@ -2,7 +2,8 @@
 import { useCallback, useState } from "react"
 import { createPortal } from "react-dom"
 import { Upload, Settings, Database, ChevronsRight, Plus, ChevronDown, X } from "lucide-react"
-import logoUrl from '../../assets/logo.svg'
+import logoUrl from '../../assets/epoch_cyan1.png'
+import logoMarkUrl from '../../assets/e_cyan1.png'
 import { AnimatePresence, motion, Reorder } from "motion/react"
 import { useAppStore } from "../../store/app"
 import { useGraphStore } from "../../store/graph"
@@ -246,12 +247,12 @@ export const Sidebar = () => {
       } bg-muted p-2 shadow-sm flex flex-col`}
     >
       {/* Logo */}
-      <div className="mb-6 border-b border-border pb-4">
-        <div className="flex items-center justify-center px-2 py-2">
+      <div className="mb-6 border-b border-border pb-7">
+        <div className="flex items-center justify-center px-0 py-0">
           <img
-            src={logoUrl}
-            alt="TimeSeries Visualiser"
-            className={`object-contain transition-all duration-300 ${open ? 'h-14 w-full' : 'h-10 w-10'}`}
+            src={open ? logoUrl : logoMarkUrl}
+            alt="Epoch"
+            className={`object-contain transition-all duration-300 ${open ? 'h-[4.5rem] w-full' : 'h-[4.5rem] w-[4.5rem]'}`}
           />
         </div>
       </div>
@@ -271,7 +272,7 @@ export const Sidebar = () => {
             <div className="grid h-full w-12 place-content-center"><LineChartIcon className="h-5 w-5" /></div>
             {open && (
               <>
-                <span className="text-sm font-medium">Graph</span>
+                <span className="text-sm font-medium">Graphs</span>
                 {openGraphs.length > 0 && (
                   <ChevronDown className={`ml-auto mr-8 h-3.5 w-3.5 transition-transform duration-200 ${graphsExpanded ? '' : '-rotate-90'}`} />
                 )}

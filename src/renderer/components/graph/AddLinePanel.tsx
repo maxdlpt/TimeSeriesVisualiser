@@ -33,10 +33,9 @@ interface SourceDropdownProps {
   source: Source
   onSelect: (source: Source) => void
   externalDBs: ExternalDB[]
-  onUpload: () => void
 }
 
-function SourceDropdown({ source, onSelect, externalDBs, onUpload }: SourceDropdownProps) {
+function SourceDropdown({ source, onSelect, externalDBs }: SourceDropdownProps) {
   const [open, setOpen] = useState(false)
   const wrapperRef = useRef<HTMLDivElement>(null)
 
@@ -158,20 +157,6 @@ function SourceDropdown({ source, onSelect, externalDBs, onUpload }: SourceDropd
                 </motion.button>
               ))}
 
-              <div className="border-t-2 border-border" />
-              <motion.button
-                type="button"
-                onClick={() => { setOpen(false); onUpload() }}
-                variants={{ hidden: { opacity: 0, x: -20 }, visible: { opacity: 1, x: 0 } }}
-                className={cn(
-                  'w-full flex items-center gap-2 px-3 py-2 text-sm text-left',
-                  'bg-card hover:bg-accent',
-                  'transition-colors duration-150 text-muted-foreground hover:text-foreground',
-                )}
-              >
-                <Upload className="h-3.5 w-3.5 shrink-0" />
-                <span className="flex-1">Upload data…</span>
-              </motion.button>
             </motion.div>
           </motion.div>
         )}
@@ -444,7 +429,6 @@ export function AddLinePanel({ placement, onClose }: AddLinePanelProps): JSX.Ele
           source={source}
           onSelect={setSource}
           externalDBs={externalDBs}
-          onUpload={() => { setRightPanel(null); setActiveTab('upload') }}
         />
       </section>
 
@@ -497,6 +481,21 @@ export function AddLinePanel({ placement, onClose }: AddLinePanelProps): JSX.Ele
           </div>
         )}
       </section>
+
+      {/* Upload shortcut */}
+      <button
+        type="button"
+        onClick={() => { setRightPanel(null); setActiveTab('upload') }}
+        className={cn(
+          'w-full flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium',
+          'border border-dashed border-border',
+          'text-muted-foreground hover:text-foreground hover:bg-accent',
+          'transition-colors duration-150',
+        )}
+      >
+        <Upload className="h-3.5 w-3.5 shrink-0" />
+        <span>Upload data…</span>
+      </button>
     </motion.div>
   )
 }

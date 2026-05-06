@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { parseCSVText } from '../../lib/parse'
+import { ipc } from '../../lib/ipc'
 import type { DataSeries } from '../../../shared/types'
 
 interface Props {
@@ -8,110 +9,111 @@ interface Props {
 
 type Grid = string[][]
 
-function parseToGrid(text: string): Grid {
-  const rows = text.split(/\r?\n/).map((row) => row.split('\t'))
-  // Pad shorter rows to the maximum row length so the table is rectangular
-  const maxCols = Math.max(...rows.map((r) => r.length))
-  return rows.map((r) => {
-    const padded = [...r]
-    while (padded.length < maxCols) padded.push('')
-    return padded
-  })
+function gridToCSV(grid: Grid): string {
+  return grid.map((row) => row.map((cell) => {
+    if (cell.includes(',') || cell.includes('"') || cell.includes('\n')) {
+      return `"${cell.replace(/"/g, '""')}"`
+    }
+    return cell
+  }).join(',')).join('\n')
 }
 
-function gridToCSV(grid: Grid): string {
-  return grid.map((row) => row.join(',')).join('\n')
+/** Forward parsed series immediately — no intermediate grid UI. */
+function forwardGrid(grid: Grid, onSeries: (s: DataSeries[]) => void): boolean {
+  const csv = gridToCSV(grid)
+  const series = parseCSVText(csv)
+  if (series.length > 0 && series[0].points.length > 0) {
+    onSeries(series)
+    return true
+  }
+  return false
+}
+
+/**
+ * Read spreadsheet data from the OS clipboard via the main process.
+ * Retries up to 3 times with increasing delays (the clipboard may be
+ * locked by the browser during paste event processing).
+ */
+async function readClipboardWithRetry(): Promise<Grid | null> {
+  const delays = [0, 100, 300]
+  for (const delay of delays) {
+    if (delay > 0) await new Promise((r) => setTimeout(r, delay))
+    try {
+      const grid = await ipc.clipboard.readSpreadsheet()
+      if (grid && grid.length > 0) return grid
+    } catch { /* IPC error — retry */ }
+  }
+  return null
 }
 
 export function PasteTable({ onSeries }: Props) {
-  const [grid, setGrid] = useState<Grid | null>(null)
+  const zoneRef = useRef<HTMLDivElement>(null)
+  const [parseError, setParseError] = useState<string | null>(null)
 
-  // Re-parse whenever grid changes
   useEffect(() => {
-    if (!grid) return
-    const csv = gridToCSV(grid)
-    const series = parseCSVText(csv)
-    if (series.length > 0 && series[0].points.length > 0) {
-      onSeries(series)
-    }
-  }, [grid, onSeries])
+    zoneRef.current?.focus()
+  }, [])
 
-  const handlePaste = useCallback((e: React.ClipboardEvent) => {
-    const text = e.clipboardData.getData('text/plain')
-    if (!text.trim()) return
+  // Both Ctrl+V and button use the same IPC path — the main process reads
+  // unsanitized HTML from the OS clipboard (preserving Excel's x:num attributes
+  // for full precision), which the web clipboard API strips out.
+  const handlePaste = useCallback(async (e: React.ClipboardEvent) => {
     e.preventDefault()
-    setGrid(parseToGrid(text.trim()))
-  }, [])
+    setParseError(null)
 
-  const updateCell = useCallback((rowIdx: number, colIdx: number, value: string) => {
-    setGrid((prev) => {
-      if (!prev) return prev
-      const next = prev.map((r) => [...r])
-      next[rowIdx][colIdx] = value
-      return next
-    })
-  }, [])
+    const grid = await readClipboardWithRetry()
 
-  if (!grid) {
-    return (
-      <div
-        tabIndex={0}
-        onPaste={handlePaste}
-        className={[
-          'flex flex-col items-center justify-center min-h-48 rounded-lg',
-          'border-2 border-dashed border-border',
-          'text-muted-foreground text-sm cursor-text',
-          'focus:outline-none focus:border-primary transition-colors',
-        ].join(' ')}
-      >
-        <p className="font-medium">Click here, then paste your data</p>
-        <p className="text-xs mt-1">First row = headers (date, series1, series2…). First column = dates.</p>
-      </div>
-    )
-  }
+    if (!grid) {
+      setParseError('Could not read clipboard. Try the "Paste from clipboard" button below.')
+      return
+    }
+
+    if (!forwardGrid(grid, onSeries)) {
+      setParseError('No valid series found. Ensure the first column contains dates and other columns contain numbers.')
+    }
+  }, [onSeries])
+
+  const handleClipboardButton = useCallback(async () => {
+    setParseError(null)
+    try {
+      const grid = await ipc.clipboard.readSpreadsheet()
+
+      if (grid && grid.length > 0) {
+        if (forwardGrid(grid, onSeries)) return
+        setParseError('No valid series found. Ensure the first column contains dates and other columns contain numbers.')
+        return
+      }
+
+      setParseError('Clipboard is empty. Copy data first, then click this button.')
+    } catch {
+      setParseError('Clipboard access denied. Use Ctrl+V to paste instead.')
+    }
+  }, [onSeries])
 
   return (
-    <div className="flex flex-col gap-2">
-      <div
-        onPaste={handlePaste}
-        className="overflow-x-auto rounded-lg border border-border"
-      >
-        <table className="min-w-full text-sm border-collapse">
-          <tbody>
-            {grid.map((row, ri) => (
-              <tr
-                key={ri}
-                className={ri === 0 ? 'bg-muted' : ''}
-              >
-                {row.map((cell, ci) => (
-                  <td
-                    key={ci}
-                    className="border border-border p-0"
-                  >
-                    <input
-                      value={cell}
-                      onChange={(e) => updateCell(ri, ci, e.target.value)}
-                      className={[
-                        'w-full min-w-[80px] px-2 py-1 bg-transparent',
-                        'focus:outline-none focus:bg-primary/5',
-                        ri === 0 ? 'font-semibold' : 'font-mono',
-                      ].join(' ')}
-                    />
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
+    <div
+      ref={zoneRef}
+      tabIndex={0}
+      onPaste={handlePaste}
+      className={[
+        'flex flex-col items-center justify-center min-h-48 rounded-lg gap-3',
+        'border-2 border-dashed border-border',
+        'text-muted-foreground text-sm cursor-text',
+        'focus:outline-none focus:border-primary transition-colors',
+      ].join(' ')}
+    >
+      <p className="font-medium">Paste your data here (Ctrl+V)</p>
+      <p className="text-xs">First row = headers (date, series1, series2…). First column = dates.</p>
       <button
         type="button"
-        onClick={() => setGrid(null)}
-        className="self-start text-xs text-muted-foreground hover:text-red-500 transition-colors"
+        onClick={handleClipboardButton}
+        className="px-3 py-1.5 rounded-md text-xs font-medium bg-primary/10 hover:bg-primary/20 text-primary transition-colors"
       >
-        Clear table
+        Paste from clipboard
       </button>
+      {parseError && (
+        <p className="text-xs text-amber-500">{parseError}</p>
+      )}
     </div>
   )
 }

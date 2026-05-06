@@ -3,7 +3,7 @@ export interface DataPoint {
   value: number
 }
 
-export type DataFreq = 'daily' | 'monthly' | 'quarterly' | 'yearly'
+export type DataFreq = 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'semi-annual' | 'yearly'
 
 /** Per-series transform — determines how originalPoints are mapped to display points. */
 export type SeriesTransform = 'returns' | 'cumulative' | 'drawdown'
@@ -72,6 +72,10 @@ export interface DataSeries {
   cumBaseInput?: string           // only when transform === 'cumulative'; '' = first date
   dataType?: DataType       // undefined treated as 'growth' for backward compat
   startingValue?: number    // only meaningful when dataType === 'level'
+  /** Transient: number of rows dropped during parsing (invalid date or value). Not persisted. */
+  droppedRows?: number
+  /** Transient: detected date format from parse (DMY/MDY/ISO). Not persisted. */
+  dateFormat?: 'DMY' | 'MDY' | 'ISO'
   /**
    * Present only on promoted overlay series. Tells GraphTab to recompute
    * `points` from `originalPoints` using this config, bypassing normal transforms.

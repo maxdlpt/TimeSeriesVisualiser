@@ -172,4 +172,7 @@ export const ipc = {
     rect: (rect: { x: number; y: number; width: number; height: number }): Promise<Uint8Array | null> =>
       window.tsv.capture.rect(rect),
   },
+  clipboard: {
+    readSpreadsheet: (): Promise<string[][] | null> => window.tsv.clipboard.readSpreadsheet(),
+  },
 }
